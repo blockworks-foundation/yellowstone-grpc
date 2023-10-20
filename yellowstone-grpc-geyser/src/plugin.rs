@@ -256,9 +256,24 @@ impl GeyserPlugin for Plugin {
         }
 
         self.with_inner(|inner| {
+            let accounts = message
+                .account_keys()
+                .iter()
+                .enumerate()
+                .map(|(index, x)| BankingStageAccount {
+                    account: x.clone(),
+                    is_writable: message.is_writable(index),
+                })
+                .collect();
             let message = Message::BankingTransactionResult(
-                (*transaction.signature(), transaction_error, slot).into(),
+                (*transaction.signature(), transaction_error, slot, accounts).into(),
             );
+            let message = Message::BankingTransactionResult(BankingTransactionMessage {
+                signature: transaction.signature().clone(),
+                transaction_error: error,
+                slot,
+                accounts,
+            });
             inner.send_message(message);
             Ok(())
         })

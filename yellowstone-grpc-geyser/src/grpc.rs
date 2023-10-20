@@ -304,18 +304,23 @@ pub struct MessageBankingTransaction {
     pub signature: Signature,
     pub transaction_error: Option<TransactionError>,
     pub slot: u64,
+    pub accounts: Vec<BankingStageAccount>,
 }
 
-impl From<(Signature, Option<TransactionError>, u64)> for MessageBankingTransaction {
+impl From<(Signature, Option<TransactionError>, u64, Vec<BankingStageAccount>)> for MessageBankingTransaction {
     fn from(
-        (signature, transaction_error, slot): (Signature, Option<TransactionError>, u64),
+        (signature, transaction_error, slot, accounts): (Signature, Option<TransactionError>, u64, Vec<BankingStageAccount>),
     ) -> Self {
         Self {
             signature,
             transaction_error,
             slot,
+            accounts,
         }
     }
+pub struct BankingStageAccount {
+    pub account: Pubkey,
+    pub is_writable: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -483,6 +488,14 @@ impl<'a> MessageRef<'a> {
                             err: bincode::serialize(&x).unwrap(),
                         }
                     }),
+                    accounts: message
+                        .accounts
+                        .iter()
+                        .map(|x| yellowstone_grpc_proto::prelude::BankingStageAccount {
+                            account: x.account.to_string(),
+                            is_writable: x.is_writable,
+                        })
+                        .collect(),
                 })
             }
         }
