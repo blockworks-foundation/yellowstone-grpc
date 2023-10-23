@@ -300,6 +300,12 @@ impl<'a> From<&'a ReplicaBlockInfoV3<'a>> for MessageBlockMeta {
 }
 
 #[derive(Debug, Clone)]
+pub struct BankingStageAccount {
+    pub account: Pubkey,
+    pub is_writable: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct MessageBankingTransaction {
     pub signature: Signature,
     pub transaction_error: Option<TransactionError>,
@@ -307,9 +313,21 @@ pub struct MessageBankingTransaction {
     pub accounts: Vec<BankingStageAccount>,
 }
 
-impl From<(Signature, Option<TransactionError>, u64, Vec<BankingStageAccount>)> for MessageBankingTransaction {
+impl
+    From<(
+        Signature,
+        Option<TransactionError>,
+        u64,
+        Vec<BankingStageAccount>,
+    )> for MessageBankingTransaction
+{
     fn from(
-        (signature, transaction_error, slot, accounts): (Signature, Option<TransactionError>, u64, Vec<BankingStageAccount>),
+        (signature, transaction_error, slot, accounts): (
+            Signature,
+            Option<TransactionError>,
+            u64,
+            Vec<BankingStageAccount>,
+        ),
     ) -> Self {
         Self {
             signature,
@@ -318,9 +336,6 @@ impl From<(Signature, Option<TransactionError>, u64, Vec<BankingStageAccount>)> 
             accounts,
         }
     }
-pub struct BankingStageAccount {
-    pub account: Pubkey,
-    pub is_writable: bool,
 }
 
 #[derive(Debug, Clone)]
