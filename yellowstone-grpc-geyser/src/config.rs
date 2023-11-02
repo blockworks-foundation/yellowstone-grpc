@@ -1,6 +1,6 @@
 use {
     serde::{de, Deserialize, Deserializer},
-    solana_geyser_plugin_interface::geyser_plugin_interface::{
+    agave_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPluginError, Result as PluginResult,
     },
     solana_sdk::pubkey::Pubkey,

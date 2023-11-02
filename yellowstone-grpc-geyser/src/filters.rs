@@ -201,6 +201,7 @@ impl FilterAccounts {
         let mut filter = FilterAccountsMatch::new(self);
         filter.match_account(&message.account.pubkey);
         filter.match_owner(&message.account.owner);
+        filter.match_owner(&message.account.previous_owner);
         filter.match_data(&message.account.data);
         vec![(filter.get_filters(), MessageRef::Account(message))]
     }

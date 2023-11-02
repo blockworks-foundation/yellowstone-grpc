@@ -4,7 +4,7 @@ use {
         grpc::{GrpcService, Message},
         prom::{self, PrometheusService, MESSAGE_QUEUE_SIZE},
     },
-    solana_geyser_plugin_interface::geyser_plugin_interface::{
+    agave_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
         ReplicaEntryInfoVersions, ReplicaTransactionInfoVersions, Result as PluginResult,
         SlotStatus,
@@ -127,7 +127,12 @@ impl GeyserPlugin for Plugin {
                 ReplicaAccountInfoVersions::V0_0_2(_info) => {
                     unreachable!("ReplicaAccountInfoVersions::V0_0_2 is not supported")
                 }
-                ReplicaAccountInfoVersions::V0_0_3(info) => info,
+                ReplicaAccountInfoVersions::V0_0_3(_) => {
+                    unreachable!("ReplicaAccountInfoVersions::V0_0_3 is not supported")
+                },
+                ReplicaAccountInfoVersions::V0_0_4(info) => {
+                    info
+                }
             };
 
             let message = Message::Account((account, slot, is_startup).into());

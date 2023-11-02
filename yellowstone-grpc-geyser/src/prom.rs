@@ -8,7 +8,7 @@ use {
     },
     log::error,
     prometheus::{IntCounterVec, IntGauge, IntGaugeVec, Opts, Registry, TextEncoder},
-    solana_geyser_plugin_interface::geyser_plugin_interface::SlotStatus,
+    agave_geyser_plugin_interface::geyser_plugin_interface::SlotStatus,
     std::sync::Once,
     tokio::sync::oneshot,
 };
