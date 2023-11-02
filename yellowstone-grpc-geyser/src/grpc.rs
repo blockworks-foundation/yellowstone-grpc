@@ -1,3 +1,5 @@
+use solana_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfoV4;
+
 use {
     crate::{
         config::{ConfigBlockFailAction, ConfigGrpc},
@@ -7,7 +9,7 @@ use {
     },
     log::{error, info},
     solana_geyser_plugin_interface::geyser_plugin_interface::{
-        ReplicaAccountInfoV3, ReplicaBlockInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2,
+        ReplicaBlockInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2,
         SlotStatus,
     },
     solana_sdk::{
@@ -60,6 +62,7 @@ pub struct MessageAccountInfo {
     pub pubkey: Pubkey,
     pub lamports: u64,
     pub owner: Pubkey,
+    pub previous_owner: Pubkey,
     pub executable: bool,
     pub rent_epoch: u64,
     pub data: Vec<u8>,
@@ -103,13 +106,14 @@ pub struct MessageAccount {
     pub is_startup: bool,
 }
 
-impl<'a> From<(&'a ReplicaAccountInfoV3<'a>, u64, bool)> for MessageAccount {
-    fn from((account, slot, is_startup): (&'a ReplicaAccountInfoV3<'a>, u64, bool)) -> Self {
+impl<'a> From<(&'a ReplicaAccountInfoV4<'a>, u64, bool)> for MessageAccount {
+    fn from((account, slot, is_startup): (&'a ReplicaAccountInfoV4<'a>, u64, bool)) -> Self {
         Self {
             account: MessageAccountInfo {
                 pubkey: Pubkey::try_from(account.pubkey).expect("valid Pubkey"),
                 lamports: account.lamports,
                 owner: Pubkey::try_from(account.owner).expect("valid Pubkey"),
+                previous_owner: account.old_account_data.as_ref().map(|x| Pubkey::try_from(x.owner).expect("valid Pubkey")).unwrap_or_default(),
                 executable: account.executable,
                 rent_epoch: account.rent_epoch,
                 data: account.data.into(),

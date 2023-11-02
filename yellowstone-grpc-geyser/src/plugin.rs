@@ -112,7 +112,12 @@ impl GeyserPlugin for Plugin {
                 ReplicaAccountInfoVersions::V0_0_2(_info) => {
                     unreachable!("ReplicaAccountInfoVersions::V0_0_2 is not supported")
                 }
-                ReplicaAccountInfoVersions::V0_0_3(info) => info,
+                ReplicaAccountInfoVersions::V0_0_3(_) => {
+                    unreachable!("ReplicaAccountInfoVersions::V0_0_3 is not supported")
+                },
+                ReplicaAccountInfoVersions::V0_0_4(info) => {
+                    info
+                }
             };
 
             let message = Message::Account((account, slot, is_startup).into());

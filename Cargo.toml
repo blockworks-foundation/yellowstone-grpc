@@ -11,3 +11,11 @@ members = [
 debug = true
 lto = true
 codegen-units = 1
+
+[patch.crates-io]
+solana-account-decoder = { git = "https://github.com/godmodegalactus/solana.git", branch = "geyser_notification_over_acc_deletion_v1.17.1" }
+solana-geyser-plugin-interface = { git = "https://github.com/godmodegalactus/solana.git", branch = "geyser_notification_over_acc_deletion_v1.17.1" }
+solana-logger = { git = "https://github.com/godmodegalactus/solana.git", branch = "geyser_notification_over_acc_deletion_v1.17.1" }
+solana-program = { git = "https://github.com/godmodegalactus/solana.git", branch = "geyser_notification_over_acc_deletion_v1.17.1" }
+solana-sdk = { git = "https://github.com/godmodegalactus/solana.git", branch = "geyser_notification_over_acc_deletion_v1.17.1" }
+solana-transaction-status = { git = "https://github.com/godmodegalactus/solana.git", branch = "geyser_notification_over_acc_deletion_v1.17.1" }
