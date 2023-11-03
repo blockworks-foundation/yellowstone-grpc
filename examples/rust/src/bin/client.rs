@@ -555,7 +555,6 @@ async fn geyser_subscribe(
                     }
                     _ => {}
                 }
-                info!("new message: {msg:?}")
             }
             Err(error) => {
                 error!("error: {error:?}");
