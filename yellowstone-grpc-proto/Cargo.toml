@@ -12,9 +12,9 @@ keywords = ["solana"]
 [dependencies]
 bincode = "1.3.3"
 prost = "0.12.1"
-solana-account-decoder = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21" }
-solana-sdk = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21" }
-solana-transaction-status = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21" }
+solana-account-decoder = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21_new" }
+solana-sdk = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21_new" }
+solana-transaction-status = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21_new" }
 tonic = "0.10.2"
 
 [build-dependencies]

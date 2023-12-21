@@ -21,8 +21,8 @@ hex = "0.4.3"
 log = { version = "0.4.14", features = ["std"] }
 maplit = "1.0.2"
 serde_json = "1.0.86"
-solana-sdk = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21" }
-solana-transaction-status = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21" }
+solana-sdk = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21_new" }
+solana-transaction-status = { git = "https://github.com/blockworks-foundation/solana.git", tag = "geyser_send_transaction_results_v1.16.21_new" }
 tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros", "time"] }
 yellowstone-grpc-client = { path = "../../yellowstone-grpc-client" }
 yellowstone-grpc-proto = { path = "../../yellowstone-grpc-proto" }

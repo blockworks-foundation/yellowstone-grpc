@@ -10,8 +10,7 @@ use {
     },
     log::{error, info},
     solana_geyser_plugin_interface::geyser_plugin_interface::{
-        ReplicaAccountInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2,
-        SlotStatus,
+        ReplicaAccountInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2, SlotStatus,
     },
     solana_sdk::{
         clock::{UnixTimestamp, MAX_RECENT_BLOCKHASHES},
