@@ -314,7 +314,7 @@ impl GeyserGrpcClientBufferConfig {
 }
 
 impl GeyserGrpcClient<()> {
-    pub async fn connect_with_timeout_with_buffers<E, T>(
+    pub fn connect_with_timeout_with_buffers<E, T>(
         endpoint: E,
         x_token: Option<T>,
         tls_config: Option<ClientTlsConfig>,
