@@ -6,7 +6,7 @@ use {
         version::GrpcVersionInfo,
     },
     anyhow::Context,
-    log::{error, info},
+    log::{error, info, trace},
     solana_geyser_plugin_interface::geyser_plugin_interface::{
         ReplicaAccountInfoV3, ReplicaBlockInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2,
         SlotStatus,
@@ -828,6 +828,8 @@ impl GrpcService {
             tokio::select! {
                 Some(message) = messages_rx.recv() => {
                     MESSAGE_QUEUE_SIZE.dec();
+                    trace!("received {} message", message.kind());
+
 
                     // Update metrics
                     if let Message::Slot(slot_message) = message.as_ref() {
@@ -842,6 +844,8 @@ impl GrpcService {
                     }
 
                     // Remove outdated block reconstruction info
+                    trace!("removing outdated block reconstruction info");
+                    let remove_time = Instant::now();
                     match message.as_ref() {
                         // On startup we can receive few Confirmed/Finalized slots without BlockMeta message
                         // With saved first Processed slot we can ignore errors caused by startup process
@@ -900,8 +904,11 @@ impl GrpcService {
                         }
                         _ => {}
                     }
+                    trace!("remove_time complete in {}", remove_time.elapsed().as_micros());
 
                     // Update block reconstruction info
+                    trace!("updating block reconstruction info");
+                    let block_reconstruction_time = Instant::now();
                     let slot_messages = messages.entry(message.get_slot()).or_default();
                     if !matches!(message.as_ref(), Message::Slot(_)) {
                         slot_messages.messages.push(Some(Arc::clone(&message)));
@@ -960,8 +967,11 @@ impl GrpcService {
                         }
                         _ => {}
                     }
+                    trace!("block_reconstruction_time complete in {}", block_reconstruction_time.elapsed().as_micros());
 
                     // Send messages to filter (and to clients)
+                    trace!("sending messages");
+                    let send_time = Instant::now();
                     let mut messages_vec = vec![message];
                     if let Some(sealed_block_msg) = sealed_block_msg {
                         messages_vec.push(sealed_block_msg);
@@ -1061,8 +1071,10 @@ impl GrpcService {
                             }
                         }
                     }
+                    trace!("messages sent in {}", send_time.elapsed().as_micros());
                 }
                 () = &mut processed_sleep => {
+                    trace!("processed_sleep");
                     if !processed_messages.is_empty() {
                         let _ = broadcast_tx.send((CommitmentLevel::Processed, processed_messages.into()));
                         processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
