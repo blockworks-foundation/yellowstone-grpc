@@ -9,15 +9,10 @@ use {
             Message, MessageAccount, MessageBlock, MessageBlockMeta, MessageEntry, MessageRef,
             MessageSlot, MessageTransaction,
         },
-    },
-    base64::{engine::general_purpose::STANDARD as base64_engine, Engine},
-    solana_sdk::{pubkey::Pubkey, signature::Signature},
-    spl_token_2022::{generic_token_account::GenericTokenAccount, state::Account as TokenAccount},
-    std::{
+    }, base64::{engine::general_purpose::STANDARD as base64_engine, Engine}, log::trace, solana_sdk::{pubkey::Pubkey, signature::Signature}, spl_token_2022::{generic_token_account::GenericTokenAccount, state::Account as TokenAccount}, std::{
         collections::{HashMap, HashSet},
         str::FromStr,
-    },
-    yellowstone_grpc_proto::prelude::{
+    }, tokio::time::Instant, yellowstone_grpc_proto::prelude::{
         subscribe_request_filter_accounts_filter::Filter as AccountsFilterDataOneof,
         subscribe_request_filter_accounts_filter_memcmp::Data as AccountsFilterMemcmpOneof,
         subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
@@ -25,7 +20,7 @@ use {
         SubscribeRequestFilterAccountsFilter, SubscribeRequestFilterBlocks,
         SubscribeRequestFilterBlocksMeta, SubscribeRequestFilterEntry, SubscribeRequestFilterSlots,
         SubscribeRequestFilterTransactions, SubscribeUpdate, SubscribeUpdatePong,
-    },
+    }
 };
 
 #[derive(Debug, Clone)]
@@ -198,11 +193,15 @@ impl FilterAccounts {
     }
 
     fn get_filters<'a>(&self, message: &'a MessageAccount) -> Vec<(Vec<String>, MessageRef<'a>)> {
+        trace!("get_filters: MessageAccount");
+        let start_time = Instant::now();
         let mut filter = FilterAccountsMatch::new(self);
         filter.match_account(&message.account.pubkey);
         filter.match_owner(&message.account.owner);
         filter.match_data(&message.account.data);
-        vec![(filter.get_filters(), MessageRef::Account(message))]
+        let a = vec![(filter.get_filters(), MessageRef::Account(message))];
+        trace!("MessageAccount finished in {} microseconds", start_time.elapsed().as_micros());
+        a
     }
 }
 
@@ -395,7 +394,9 @@ impl FilterSlots {
         message: &'a MessageSlot,
         commitment: Option<CommitmentLevel>,
     ) -> Vec<(Vec<String>, MessageRef<'a>)> {
-        vec![(
+        trace!("get_filters: MessageSlot");
+        let start_time = Instant::now();
+        let s = vec![(
             self.filters
                 .iter()
                 .filter_map(|(name, inner)| {
@@ -407,7 +408,10 @@ impl FilterSlots {
                 })
                 .collect(),
             MessageRef::Slot(message),
-        )]
+        )];
+
+        trace!("MessageSlot finished in {} microseconds", start_time.elapsed().as_micros());
+        s
     }
 }
 
@@ -492,6 +496,8 @@ impl FilterTransactions {
         &self,
         message: &'a MessageTransaction,
     ) -> Vec<(Vec<String>, MessageRef<'a>)> {
+        trace!("get_filters: MessageTransaction");
+        let start_time = Instant::now();
         let filters = self
             .filters
             .iter()
@@ -565,6 +571,7 @@ impl FilterTransactions {
                 Some(name.clone())
             })
             .collect();
+        trace!("MessageTransaction finished in {} microseconds", start_time.elapsed().as_micros());
         vec![(filters, MessageRef::Transaction(message))]
     }
 }
@@ -591,7 +598,11 @@ impl FilterEntry {
     }
 
     fn get_filters<'a>(&self, message: &'a MessageEntry) -> Vec<(Vec<String>, MessageRef<'a>)> {
-        vec![(self.filters.clone(), MessageRef::Entry(message))]
+        trace!("get_filters: MessageEntry");
+        let start_time = Instant::now();
+        let e = vec![(self.filters.clone(), MessageRef::Entry(message))];
+        trace!("MessageEntry finished in {} microseconds", start_time.elapsed().as_micros());
+        e
     }
 }
 
@@ -655,7 +666,9 @@ impl FilterBlocks {
     }
 
     fn get_filters<'a>(&self, message: &'a MessageBlock) -> Vec<(Vec<String>, MessageRef<'a>)> {
-        self.filters
+        trace!("get_filters: MessageBlock");
+        let start_time = Instant::now();
+        let f = self.filters
             .iter()
             .map(|(filter, inner)| {
                 #[allow(clippy::unnecessary_filter_map)]
@@ -715,7 +728,9 @@ impl FilterBlocks {
                     MessageRef::Block((message, transactions, accounts, entries).into()),
                 )
             })
-            .collect()
+            .collect();
+            trace!("MessageBlock finished in {} microseconds", start_time.elapsed().as_micros());
+            f
     }
 }
 
@@ -741,7 +756,11 @@ impl FilterBlocksMeta {
     }
 
     fn get_filters<'a>(&self, message: &'a MessageBlockMeta) -> Vec<(Vec<String>, MessageRef<'a>)> {
-        vec![(self.filters.clone(), MessageRef::BlockMeta(message))]
+        trace!("get_filters: MessageBlockMeta");
+        let start_time = Instant::now();
+        let b = vec![(self.filters.clone(), MessageRef::BlockMeta(message))];
+        trace!("MessageBlockMeta finished in {} microseconds", start_time.elapsed().as_micros());
+        b
     }
 }
 
