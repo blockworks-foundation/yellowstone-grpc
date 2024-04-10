@@ -233,7 +233,8 @@ impl GeyserPlugin for Plugin {
     }
 
     fn account_data_notifications_enabled(&self) -> bool {
-        true
+        warn!("!!! DISABLE ACCOUNT NOTIFICATIONS - for testing");
+        false
     }
 
     fn transaction_notifications_enabled(&self) -> bool {
