@@ -1,3 +1,5 @@
+use log::warn;
+use tokio::sync::mpsc::error::SendError;
 use {
     crate::{
         config::Config,
@@ -34,8 +36,13 @@ pub struct PluginInner {
 
 impl PluginInner {
     fn send_message(&self, message: Message) {
-        if self.grpc_channel.send(message).is_ok() {
+        match self.grpc_channel.send(message) {
+            Ok(()) => {
             MESSAGE_QUEUE_SIZE.inc();
+            }
+            Err(_send_error) => {
+                warn!("failed to send message to grpc channel: channel closed");
+            }
         }
     }
 }
