@@ -719,9 +719,13 @@ impl GrpcService {
         let (snapshot_tx, snapshot_rx) = match config.snapshot_plugin_channel_capacity {
             Some(cap) => {
                 let (tx, rx) = crossbeam_channel::bounded(cap);
+                info!("init snapshot channel with capacity: {}", cap);
                 (Some(tx), Some(rx))
             }
-            None => (None, None),
+            None => {
+                info!("snapshot channel is disabled");
+                (None, None)
+            },
         };
 
         // Blocks meta storage
@@ -735,6 +739,7 @@ impl GrpcService {
 
         // Messages to clients combined by commitment
         let (broadcast_tx, _) = broadcast::channel(config.channel_capacity);
+        info!("init broadcast channel with capacity: {}", config.channel_capacity);
 
         // gRPC server builder with optional TLS
         let mut server_builder = Server::builder();
@@ -1232,6 +1237,8 @@ impl Geyser for GrpcService {
         } else {
             self.config.channel_capacity
         });
+        info!("client #{id}: create channel with capacity {}", stream_tx.max_capacity());
+
         let (client_tx, client_rx) = mpsc::unbounded_channel();
         let notify_exit1 = Arc::new(Notify::new());
         let notify_exit2 = Arc::new(Notify::new());
