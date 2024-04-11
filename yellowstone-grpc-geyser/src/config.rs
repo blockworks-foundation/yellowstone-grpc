@@ -101,6 +101,9 @@ pub struct ConfigGrpc {
     /// Limits for possible filters
     #[serde(default)]
     pub filters: ConfigGrpcFilters,
+
+    #[serde(default)]
+    pub skip_statup_notification: Option<bool>,
 }
 
 impl ConfigGrpc {
