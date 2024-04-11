@@ -12,7 +12,7 @@ use {
     std::{
         concat, env,
         sync::{
-            atomic::{AtomicUsize, Ordering},
+            atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc,
         },
         time::Duration,
@@ -30,6 +30,7 @@ pub struct PluginInner {
     grpc_channel: mpsc::UnboundedSender<Message>,
     grpc_shutdown: Arc<Notify>,
     prometheus: PrometheusService,
+    service_started: Arc<AtomicBool>,
 }
 
 impl PluginInner {
@@ -63,6 +64,7 @@ impl GeyserPlugin for Plugin {
     fn on_load(&mut self, config_file: &str) -> PluginResult<()> {
         let config = Config::load_from_file(config_file)?;
 
+        let skip_startup_notification = config.grpc.skip_statup_notification.unwrap_or_default();
         // Setup logger
         solana_logger::setup_with_default(&config.log.level);
 
@@ -92,6 +94,9 @@ impl GeyserPlugin for Plugin {
                     prometheus,
                 ))
             })?;
+        
+
+        let service_started = Arc::new(AtomicBool::new(!skip_startup_notification));
 
         self.inner = Some(PluginInner {
             runtime,
@@ -99,6 +104,7 @@ impl GeyserPlugin for Plugin {
             grpc_channel,
             grpc_shutdown,
             prometheus,
+            service_started,
         });
 
         Ok(())
@@ -120,6 +126,10 @@ impl GeyserPlugin for Plugin {
         is_startup: bool,
     ) -> PluginResult<()> {
         self.with_inner(|inner| {
+            if !inner.service_started.load(Ordering::Acquire) {
+                return Ok(())
+            }
+
             let account = match account {
                 ReplicaAccountInfoVersions::V0_0_1(_info) => {
                     unreachable!("ReplicaAccountInfoVersions::V0_0_1 is not supported")
@@ -148,6 +158,7 @@ impl GeyserPlugin for Plugin {
 
     fn notify_end_of_startup(&self) -> PluginResult<()> {
         self.with_inner(|inner| {
+            inner.service_started.store(true, Ordering::Release);
             if let Some(channel) = &inner.snapshot_channel {
                 match channel.send(None) {
                     Ok(()) => MESSAGE_QUEUE_SIZE.inc(),
@@ -165,6 +176,10 @@ impl GeyserPlugin for Plugin {
         status: SlotStatus,
     ) -> PluginResult<()> {
         self.with_inner(|inner| {
+            if !inner.service_started.load(Ordering::Acquire) {
+                return Ok(())
+            }
+
             let message = Message::Slot((slot, parent, status).into());
             inner.send_message(message);
             prom::update_slot_status(status, slot);
@@ -178,6 +193,10 @@ impl GeyserPlugin for Plugin {
         slot: u64,
     ) -> PluginResult<()> {
         self.with_inner(|inner| {
+            if !inner.service_started.load(Ordering::Acquire) {
+                return Ok(())
+            }
+
             let transaction = match transaction {
                 ReplicaTransactionInfoVersions::V0_0_1(_info) => {
                     unreachable!("ReplicaAccountInfoVersions::V0_0_1 is not supported")
@@ -194,6 +213,10 @@ impl GeyserPlugin for Plugin {
 
     fn notify_entry(&self, entry: ReplicaEntryInfoVersions) -> PluginResult<()> {
         self.with_inner(|inner| {
+            if !inner.service_started.load(Ordering::Acquire) {
+                return Ok(())
+            }
+
             #[allow(clippy::infallible_destructuring_match)]
             let entry = match entry {
                 ReplicaEntryInfoVersions::V0_0_1(entry) => entry,
@@ -208,6 +231,10 @@ impl GeyserPlugin for Plugin {
 
     fn notify_block_metadata(&self, blockinfo: ReplicaBlockInfoVersions<'_>) -> PluginResult<()> {
         self.with_inner(|inner| {
+            if !inner.service_started.load(Ordering::Acquire) {
+                return Ok(())
+            }
+            
             let blockinfo = match blockinfo {
                 ReplicaBlockInfoVersions::V0_0_1(_info) => {
                     unreachable!("ReplicaBlockInfoVersions::V0_0_1 is not supported")
