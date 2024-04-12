@@ -7,7 +7,7 @@ use {
     },
     log::{error, info},
     agave_geyser_plugin_interface::geyser_plugin_interface::{
-        ReplicaBlockInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2, ReplicaAccountInfoV4,
+        ReplicaAccountInfoV3, ReplicaBlockInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2, ReplicaAccountInfoV4
         SlotStatus,
     },
     solana_sdk::{
