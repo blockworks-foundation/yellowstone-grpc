@@ -137,8 +137,8 @@ impl GeyserPlugin for Plugin {
                 ReplicaAccountInfoVersions::V0_0_3(info) => info,
             };
 
-            let message = Message::Account((account, slot, is_startup).into());
             if is_startup {
+                let message = Message::Account((account, slot, is_startup).into());
                 if let Some(channel) = &inner.snapshot_channel {
                     match channel.send(Some(message)) {
                         Ok(()) => MESSAGE_QUEUE_SIZE.inc(),
@@ -146,6 +146,7 @@ impl GeyserPlugin for Plugin {
                     }
                 }
             } else {
+                let message = Message::Account((account, slot, is_startup).into());
                 inner.send_message(message);
             }
 
@@ -233,8 +234,8 @@ impl GeyserPlugin for Plugin {
     }
 
     fn account_data_notifications_enabled(&self) -> bool {
-        warn!("!!! DISABLE ACCOUNT NOTIFICATIONS - for testing");
-        false
+        // warn!("!!! DISABLE ACCOUNT NOTIFICATIONS - for testing");
+        true
     }
 
     fn transaction_notifications_enabled(&self) -> bool {
