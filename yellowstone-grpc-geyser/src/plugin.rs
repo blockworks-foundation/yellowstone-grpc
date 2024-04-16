@@ -104,7 +104,9 @@ impl GeyserPlugin for Plugin {
                 ))
             })?;
 
-        let mut csv_writer = Writer::from_path("account-sizes.csv").expect("must be able to use CSV");
+        const CSV_FILE: &'static str = "account-sizes.csv";
+        let mut csv_writer = Writer::from_path(CSV_FILE).expect("must be able to use CSV");
+        info!("CSV writer created for file {}", CSV_FILE);
 
         self.inner = Some(PluginInner {
             runtime,
