@@ -1,5 +1,8 @@
-use log::warn;
-use tokio::sync::mpsc::error::SendError;
+use std::cell::RefCell;
+use std::fs::File;
+use std::sync::Mutex;
+use csv::Writer;
+use log::{info, warn};
 use {
     crate::{
         config::Config,
@@ -32,6 +35,7 @@ pub struct PluginInner {
     grpc_channel: mpsc::UnboundedSender<Message>,
     grpc_shutdown: Arc<Notify>,
     prometheus: PrometheusService,
+    csv_writer: Arc<Mutex<Writer<File>>>,
 }
 
 impl PluginInner {
@@ -100,12 +104,15 @@ impl GeyserPlugin for Plugin {
                 ))
             })?;
 
+        let mut csv_writer = Writer::from_path("account-sizes.csv").expect("must be able to use CSV");
+
         self.inner = Some(PluginInner {
             runtime,
             snapshot_channel,
             grpc_channel,
             grpc_shutdown,
             prometheus,
+            csv_writer: Arc::new(Mutex::new(csv_writer)),
         });
 
         Ok(())
