@@ -105,7 +105,7 @@ impl GeyserPlugin for Plugin {
             })?;
 
         const CSV_FILE: &'static str = "/tmp/account-sizes.csv";
-        let mut csv_writer = Writer::from_path(CSV_FILE).expect("must be able to use CSV");
+        let csv_writer = Writer::from_path(CSV_FILE).expect("must be able to use CSV");
         info!("CSV writer created for file {}", CSV_FILE);
 
         self.inner = Some(PluginInner {
@@ -148,6 +148,22 @@ impl GeyserPlugin for Plugin {
 
             if is_startup {
                 let message = Message::Account((account, slot, is_startup).into());
+
+                {
+                    let mut lk_csv = inner.csv_writer.lock().unwrap();
+                    lk_csv.write_record(
+                        &[
+                            &format!("{:?}", account.pubkey),
+                            &format!("{}", account.data.len()),
+                        ])
+                        .unwrap();
+
+                    if account.pubkey[0] == 43 {
+                        // flush occasionally
+                        lk_csv.flush().unwrap();
+                    }
+                }
+
                 if let Some(channel) = &inner.snapshot_channel {
                     match channel.send(Some(message)) {
                         Ok(()) => MESSAGE_QUEUE_SIZE.inc(),
