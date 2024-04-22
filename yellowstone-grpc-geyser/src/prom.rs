@@ -1,5 +1,6 @@
 use {
     crate::{config::ConfigPrometheus, version::VERSION as VERSION_INFO},
+    agave_geyser_plugin_interface::geyser_plugin_interface::SlotStatus,
     futures::future::FutureExt,
     hyper::{
         server::conn::AddrStream,
@@ -8,7 +9,6 @@ use {
     },
     log::error,
     prometheus::{IntCounterVec, IntGauge, IntGaugeVec, Opts, Registry, TextEncoder},
-    agave_geyser_plugin_interface::geyser_plugin_interface::SlotStatus,
     std::sync::Once,
     tokio::sync::oneshot,
 };

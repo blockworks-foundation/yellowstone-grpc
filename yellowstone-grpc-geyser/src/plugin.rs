@@ -94,7 +94,6 @@ impl GeyserPlugin for Plugin {
                     prometheus,
                 ))
             })?;
-        
 
         let service_started = Arc::new(AtomicBool::new(!skip_startup_notification));
 
@@ -127,7 +126,7 @@ impl GeyserPlugin for Plugin {
     ) -> PluginResult<()> {
         self.with_inner(|inner| {
             if !inner.service_started.load(Ordering::Acquire) {
-                return Ok(())
+                return Ok(());
             }
 
             let account = match account {
@@ -139,10 +138,8 @@ impl GeyserPlugin for Plugin {
                 }
                 ReplicaAccountInfoVersions::V0_0_3(_) => {
                     unreachable!("ReplicaAccountInfoVersions::V0_0_3 is not supported")
-                },
-                ReplicaAccountInfoVersions::V0_0_4(info) => {
-                    info
                 }
+                ReplicaAccountInfoVersions::V0_0_4(info) => info,
             };
 
             let message = Message::Account((account, slot, is_startup).into());
@@ -182,7 +179,7 @@ impl GeyserPlugin for Plugin {
     ) -> PluginResult<()> {
         self.with_inner(|inner| {
             if !inner.service_started.load(Ordering::Acquire) {
-                return Ok(())
+                return Ok(());
             }
 
             let message = Message::Slot((slot, parent, status).into());
@@ -199,7 +196,7 @@ impl GeyserPlugin for Plugin {
     ) -> PluginResult<()> {
         self.with_inner(|inner| {
             if !inner.service_started.load(Ordering::Acquire) {
-                return Ok(())
+                return Ok(());
             }
 
             let transaction = match transaction {
@@ -219,7 +216,7 @@ impl GeyserPlugin for Plugin {
     fn notify_entry(&self, entry: ReplicaEntryInfoVersions) -> PluginResult<()> {
         self.with_inner(|inner| {
             if !inner.service_started.load(Ordering::Acquire) {
-                return Ok(())
+                return Ok(());
             }
 
             #[allow(clippy::infallible_destructuring_match)]
@@ -237,9 +234,9 @@ impl GeyserPlugin for Plugin {
     fn notify_block_metadata(&self, blockinfo: ReplicaBlockInfoVersions<'_>) -> PluginResult<()> {
         self.with_inner(|inner| {
             if !inner.service_started.load(Ordering::Acquire) {
-                return Ok(())
+                return Ok(());
             }
-            
+
             let blockinfo = match blockinfo {
                 ReplicaBlockInfoVersions::V0_0_1(_info) => {
                     unreachable!("ReplicaBlockInfoVersions::V0_0_1 is not supported")

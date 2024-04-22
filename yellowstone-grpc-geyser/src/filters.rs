@@ -20,7 +20,7 @@ use {
     yellowstone_grpc_proto::prelude::{
         subscribe_request_filter_accounts_filter::Filter as AccountsFilterDataOneof,
         subscribe_request_filter_accounts_filter_memcmp::Data as AccountsFilterMemcmpOneof,
-        subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
+        subscribe_update::UpdateOneof, AccountCompression, CommitmentLevel, SubscribeRequest,
         SubscribeRequestAccountsDataSlice, SubscribeRequestFilterAccounts,
         SubscribeRequestFilterAccountsFilter, SubscribeRequestFilterBlocks,
         SubscribeRequestFilterBlocksMeta, SubscribeRequestFilterEntry, SubscribeRequestFilterSlots,
@@ -39,6 +39,7 @@ pub struct Filter {
     commitment: CommitmentLevel,
     accounts_data_slice: Vec<FilterAccountsDataSlice>,
     ping: Option<i32>,
+    compression: AccountCompression,
 }
 
 impl Filter {
@@ -53,6 +54,7 @@ impl Filter {
             commitment: Self::decode_commitment(config.commitment)?,
             accounts_data_slice: FilterAccountsDataSlice::create(&config.accounts_data_slice)?,
             ping: config.ping.as_ref().map(|msg| msg.id),
+            compression: AccountCompression::Lz4,
         })
     }
 
@@ -90,7 +92,7 @@ impl Filter {
         self.commitment
     }
 
-    pub fn get_filters<'a>(
+    pub fn filter_messages<'a>(
         &self,
         message: &'a Message,
         commitment: Option<CommitmentLevel>,
@@ -110,7 +112,7 @@ impl Filter {
         message: &Message,
         commitment: Option<CommitmentLevel>,
     ) -> Vec<SubscribeUpdate> {
-        self.get_filters(message, commitment)
+        self.filter_messages(message, commitment)
             .into_iter()
             .filter_map(|(filters, message)| {
                 if filters.is_empty() {
@@ -118,7 +120,9 @@ impl Filter {
                 } else {
                     Some(SubscribeUpdate {
                         filters,
-                        update_oneof: Some(message.to_proto(&self.accounts_data_slice)),
+                        update_oneof: Some(
+                            message.to_proto(&self.accounts_data_slice, self.compression),
+                        ),
                     })
                 }
             })
@@ -878,6 +882,7 @@ mod tests {
                 account: vec![],
                 owner: vec![],
                 filters: vec![],
+                compressed: None,
             },
         );
 

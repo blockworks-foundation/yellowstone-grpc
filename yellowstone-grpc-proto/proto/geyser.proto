@@ -38,6 +38,7 @@ message SubscribeRequestFilterAccounts {
   repeated string account = 2;
   repeated string owner = 3;
   repeated SubscribeRequestFilterAccountsFilter filters = 4;
+  optional bool compressed = 5;
 }
 
 message SubscribeRequestFilterAccountsFilter {
@@ -119,6 +120,7 @@ message SubscribeUpdateAccountInfo {
   bytes data = 6;
   uint64 write_version = 7;
   optional bytes txn_signature = 8;
+  optional AccountCompression compression = 9;
 }
 
 message SubscribeUpdateSlot {
@@ -233,4 +235,9 @@ message IsBlockhashValidRequest {
 message IsBlockhashValidResponse {
   uint64 slot = 1;
   bool valid = 2;
+}
+
+enum AccountCompression {
+  UNCOMPRESSED = 0;
+  LZ4 = 1;
 }

@@ -5,11 +5,11 @@ use {
         prom::{self, CONNECTIONS_TOTAL, MESSAGE_QUEUE_SIZE},
         version::GrpcVersionInfo,
     },
-    log::{error, info},
     agave_geyser_plugin_interface::geyser_plugin_interface::{
-        ReplicaAccountInfoV3, ReplicaBlockInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2, ReplicaAccountInfoV4
+        ReplicaAccountInfoV4, ReplicaBlockInfoV3, ReplicaEntryInfo, ReplicaTransactionInfoV2,
         SlotStatus,
     },
+    log::{error, info},
     solana_sdk::{
         clock::{UnixTimestamp, MAX_RECENT_BLOCKHASHES},
         pubkey::Pubkey,
@@ -41,6 +41,7 @@ use {
     tonic_health::server::health_reporter,
     yellowstone_grpc_proto::{
         convert_to,
+        geyser::AccountCompression,
         prelude::{
             geyser_server::{Geyser, GeyserServer},
             subscribe_update::UpdateOneof,
@@ -72,6 +73,7 @@ impl MessageAccountInfo {
     fn to_proto(
         &self,
         accounts_data_slice: &[FilterAccountsDataSlice],
+        compression: AccountCompression,
     ) -> SubscribeUpdateAccountInfo {
         let data = if accounts_data_slice.is_empty() {
             self.data.clone()
@@ -84,6 +86,13 @@ impl MessageAccountInfo {
             }
             data
         };
+        let data = match compression {
+            AccountCompression::Uncompressed => data,
+            AccountCompression::Lz4 => {
+                lz4::block::compress(&data, Some(lz4::block::CompressionMode::FAST(1)), true)
+                    .unwrap()
+            }
+        };
         SubscribeUpdateAccountInfo {
             pubkey: self.pubkey.as_ref().into(),
             lamports: self.lamports,
@@ -93,6 +102,7 @@ impl MessageAccountInfo {
             data,
             write_version: self.write_version,
             txn_signature: self.txn_signature.map(|s| s.as_ref().into()),
+            compression: Some(compression.into()),
         }
     }
 }
@@ -111,7 +121,11 @@ impl<'a> From<(&'a ReplicaAccountInfoV4<'a>, u64, bool)> for MessageAccount {
                 pubkey: Pubkey::try_from(account.pubkey).expect("valid Pubkey"),
                 lamports: account.lamports,
                 owner: Pubkey::try_from(account.owner).expect("valid Pubkey"),
-                previous_owner: account.old_account_data.as_ref().map(|x| Pubkey::try_from(x.owner).expect("valid Pubkey")).unwrap_or_default(),
+                previous_owner: account
+                    .old_account_data
+                    .as_ref()
+                    .map(|x| Pubkey::try_from(x.owner).expect("valid Pubkey"))
+                    .unwrap_or_default(),
                 executable: account.executable,
                 rent_epoch: account.rent_epoch,
                 data: account.data.into(),
@@ -401,7 +415,11 @@ pub enum MessageRef<'a> {
 }
 
 impl<'a> MessageRef<'a> {
-    pub fn to_proto(&self, accounts_data_slice: &[FilterAccountsDataSlice]) -> UpdateOneof {
+    pub fn to_proto(
+        &self,
+        accounts_data_slice: &[FilterAccountsDataSlice],
+        compression: AccountCompression,
+    ) -> UpdateOneof {
         match self {
             Self::Slot(message) => UpdateOneof::Slot(SubscribeUpdateSlot {
                 slot: message.slot,
@@ -409,7 +427,7 @@ impl<'a> MessageRef<'a> {
                 status: message.status as i32,
             }),
             Self::Account(message) => UpdateOneof::Account(SubscribeUpdateAccount {
-                account: Some(message.account.to_proto(accounts_data_slice)),
+                account: Some(message.account.to_proto(accounts_data_slice, compression)),
                 slot: message.slot,
                 is_startup: message.is_startup,
             }),
@@ -436,7 +454,7 @@ impl<'a> MessageRef<'a> {
                 accounts: message
                     .accounts
                     .iter()
-                    .map(|acc| acc.to_proto(accounts_data_slice))
+                    .map(|acc| acc.to_proto(accounts_data_slice, compression))
                     .collect(),
                 entries_count: message.entries_count,
                 entries: message

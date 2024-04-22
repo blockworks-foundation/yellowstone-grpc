@@ -109,6 +109,7 @@ impl GrpcRequestToProto<SubscribeRequestFilterAccounts> for ConfigGrpcRequestAcc
             account: self.account,
             owner: self.owner,
             filters: self.filters.into_iter().map(|f| f.to_proto()).collect(),
+            compressed: None,
         }
     }
 }
