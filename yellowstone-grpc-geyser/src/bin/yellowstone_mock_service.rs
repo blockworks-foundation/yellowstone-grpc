@@ -6,6 +6,9 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::recent_blockhashes_account::update_account;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Instant;
+use rand::{random, Rng, RngCore, thread_rng};
+use rand::distributions::Standard;
+use bytes::Bytes;
 use yellowstone_grpc_geyser::config::{ConfigBlockFailAction, ConfigGrpc, ConfigGrpcFilters};
 use yellowstone_grpc_geyser::grpc::{GrpcService, Message, MessageAccount, MessageAccountInfo};
 
@@ -59,24 +62,24 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         let mut requested_sizes: Vec<usize> = Vec::new();
 
         for i in 0..99_999_999 {
-            let data_bytes = sizes[i % sizes.len()];
+            let data_size = sizes[i % sizes.len()];
 
-            if bytes_total + data_bytes > target_bytes_total {
+            if bytes_total + data_size > target_bytes_total {
                 break;
             }
 
-            requested_sizes.push(data_bytes);
-            bytes_total += data_bytes;
+            requested_sizes.push(data_size);
+            bytes_total += data_size;
         }
 
-        println!("will wend account updates down the stream ({} bytes)", bytes_total);
+        println!("will send account updates down the stream ({} bytes)", bytes_total);
 
         let avg_delay = 0.350 / requested_sizes.len() as f64;
 
         for (i, data_bytes) in requested_sizes.into_iter().enumerate() {
         let next_message_at = slot_started_at.add(Duration::from_secs_f64(avg_delay * i as f64));
 
-            let data: Vec<u8> = [42].repeat(data_bytes);
+            let data: Vec<u8> = thread_rng().sample_iter(&Standard).take(data_bytes).collect();
 
             let account_pubkey = account_pubkeys[i % sizes.len()];
 
