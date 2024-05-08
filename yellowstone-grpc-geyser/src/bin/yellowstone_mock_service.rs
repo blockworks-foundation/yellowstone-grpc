@@ -80,7 +80,7 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         for (i, data_bytes) in requested_sizes.into_iter().enumerate() {
         let next_message_at = slot_started_at.add(Duration::from_secs_f64(avg_delay * i as f64));
 
-            let data: Vec<u8> = [42].repeat(data_bytes);
+            let data: Vec<u8> = thread_rng().sample_iter(&Standard).take(data_bytes).collect();
             // using random slows down everything - could be the generator PRNG or the entropy preventing compression
             // let data: Vec<u8> = thread_rng().sample_iter(&Standard).take(data_bytes).collect();
 
