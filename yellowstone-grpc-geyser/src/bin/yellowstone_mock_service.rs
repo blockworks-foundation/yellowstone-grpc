@@ -1,6 +1,6 @@
 use std::ops::Add;
 use std::thread::{sleep, spawn};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPluginError;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::recent_blockhashes_account::update_account;
@@ -9,8 +9,10 @@ use tokio::time::Instant;
 use rand::{random, Rng, RngCore, thread_rng};
 use rand::distributions::Standard;
 use bytes::Bytes;
+use solana_sdk::clock::UnixTimestamp;
 use yellowstone_grpc_geyser::config::{ConfigBlockFailAction, ConfigGrpc, ConfigGrpcFilters};
-use yellowstone_grpc_geyser::grpc::{GrpcService, Message, MessageAccount, MessageAccountInfo};
+use yellowstone_grpc_geyser::grpc::{GrpcService, Message, MessageAccount, MessageAccountInfo, MessageBlockMeta, MessageSlot};
+use yellowstone_grpc_proto::geyser::CommitmentLevel;
 
 #[tokio::main]
 async fn main() {
@@ -103,6 +105,32 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
 
             tokio::time::sleep_until(next_message_at).await;
         }
+
+        let block_time =
+            SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as UnixTimestamp;
+
+        grpc_channel.send(Message::Slot(
+            MessageSlot {
+                slot,
+                parent: Some(slot - 1),
+                status: CommitmentLevel::Processed,
+            })).expect("channel was closed");
+
+
+        grpc_channel.send(Message::BlockMeta(
+            MessageBlockMeta {
+                parent_slot: slot - 1,
+                slot,
+                parent_blockhash: "nohash".to_string(),
+                blockhash: "nohash".to_string(),
+                rewards: vec![],
+                block_time: Some(block_time),
+                block_height: None,
+                executed_transaction_count: 0,
+                entries_count: 0,
+            })).expect("channel was closed");
 
 
         tokio::time::sleep_until(slot_started_at.add(Duration::from_millis(400))).await;
