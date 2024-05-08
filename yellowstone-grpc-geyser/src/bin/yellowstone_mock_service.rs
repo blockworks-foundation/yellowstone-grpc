@@ -6,6 +6,9 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::recent_blockhashes_account::update_account;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Instant;
+use rand::{random, Rng, RngCore, thread_rng};
+use rand::distributions::Standard;
+use bytes::Bytes;
 use yellowstone_grpc_geyser::config::{ConfigBlockFailAction, ConfigGrpc, ConfigGrpcFilters};
 use yellowstone_grpc_geyser::grpc::{GrpcService, Message, MessageAccount, MessageAccountInfo};
 
@@ -50,8 +53,7 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
     for slot in 42_000_000.. {
         let slot_started_at = Instant::now();
 
-
-        let sizes = vec![0, 8, 8, 165, 165, 165, 165, 165, 165, 165, 11099, 11099, 11099];
+        let sizes = vec![0, 8, 8, 165, 165, 165, 165, 11099, 11099, 11099, 11099, 11099, 11099];
         const target_bytes_total: usize = 30_000_000;
         let mut bytes_total = 0;
 
@@ -59,17 +61,17 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         let mut requested_sizes: Vec<usize> = Vec::new();
 
         for i in 0..99_999_999 {
-            let data_bytes = sizes[i % sizes.len()];
+            let data_size = sizes[i % sizes.len()];
 
-            if bytes_total + data_bytes > target_bytes_total {
+            if bytes_total + data_size > target_bytes_total {
                 break;
             }
 
-            requested_sizes.push(data_bytes);
-            bytes_total += data_bytes;
+            requested_sizes.push(data_size);
+            bytes_total += data_size;
         }
 
-        println!("will wend account updates down the stream ({} bytes)", bytes_total);
+        println!("will send account updates down the stream ({} bytes) in {} messages", bytes_total, requested_sizes.len());
 
         let avg_delay = 0.350 / requested_sizes.len() as f64;
 
@@ -77,6 +79,8 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         let next_message_at = slot_started_at.add(Duration::from_secs_f64(avg_delay * i as f64));
 
             let data: Vec<u8> = [42].repeat(data_bytes);
+            // using random slows down everything - could be the generator PRNG or the entropy preventing compression
+            // let data: Vec<u8> = thread_rng().sample_iter(&Standard).take(data_bytes).collect();
 
             let account_pubkey = account_pubkeys[i % sizes.len()];
 
