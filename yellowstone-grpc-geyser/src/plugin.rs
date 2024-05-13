@@ -1,4 +1,8 @@
-use log::warn;
+use std::io;
+use std::io::{BufReader, BufWriter, Write};
+use log::{debug, info, warn};
+use solana_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfoV3;
+use solana_sdk::pubkey::Pubkey;
 use tokio::sync::mpsc::error::SendError;
 use {
     crate::{
@@ -24,6 +28,7 @@ use {
         sync::{mpsc, Notify},
     },
 };
+use crate::grpc::{MessageAccount, MessageAccountInfo};
 
 #[derive(Debug)]
 pub struct PluginInner {
@@ -146,7 +151,22 @@ impl GeyserPlugin for Plugin {
                     }
                 }
             } else {
-                let message = Message::Account((account, slot, is_startup).into());
+
+                let message = if account.data.len() > 10_000 {
+                    let compressed_data = lz4_flex::compress_prepend_size(&account.data);
+                    let replica = ReplicaAccountInfoV3 {
+                        data: &compressed_data,
+                        ..account.clone()
+                    };
+                        let pubkey = Pubkey::try_from(account.pubkey).unwrap();
+                        info!("LZ4 compressed account data: {} -> {} of {}",
+                            account.data.len(), compressed_data.len(), pubkey);
+
+                    Message::Account((&replica, slot, is_startup).into())
+                } else {
+                    Message::Account((account, slot, is_startup).into())
+                };
+
                 inner.send_message(message);
             }
 
