@@ -1,4 +1,5 @@
 use std::pin::Pin;
+use std::time::SystemTime;
 use futures::{StreamExt, TryStreamExt};
 use log::{debug, warn};
 use {
@@ -1186,7 +1187,13 @@ impl GrpcService {
                                     match message.update_oneof.as_ref().unwrap() {
                                         UpdateOneof::Account(update) => {
                                             // message is put in bounded queue which gets consumed by GRPC receiver
-                                            info!("client #{id}: inspect message - {}", update.slot);
+                                            if let Some(ref account_info) = update.account {
+                                                let now = SystemTime::now();
+                                                let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+
+                                                info!("account update inspect before sending to buffer channel: write_version={};timestamp_us={};slot={}",
+                                                    account_info.write_version, since_the_epoch.as_micros(), update.slot);
+                                            }
                                         }
                                         _ => {}
                                     }
@@ -1441,6 +1448,7 @@ fn spawn_plugger_mpcs(
     mut upstream: tokio::sync::mpsc::Receiver<Result<SubscribeUpdate, Status>>,
     downstream: tokio::sync::mpsc::Sender<Result<SubscribeUpdate, Status>>,
 ) {
+
     // abort forwarder by closing the sender
     let _private_handler = tokio::spawn(async move {
         while let Some(value) = upstream.recv().await {
@@ -1448,6 +1456,15 @@ fn spawn_plugger_mpcs(
             if let Ok(ref message) = value {
                 match message.update_oneof.as_ref().unwrap() {
                     UpdateOneof::Account(update) => {
+
+                        if let Some(ref account_info) = update.account {
+                            let now = SystemTime::now();
+                            let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+
+                            info!("account update inspect before sending to grpc stream: write_version={};timestamp_us={};slot={}",
+                                account_info.write_version, since_the_epoch.as_micros(), update.slot);
+                        }
+
                         // message is put in bounded queue which gets consumed by GRPC receiver
                         info!("client: inspect message last - {}", update.slot);
                     }
