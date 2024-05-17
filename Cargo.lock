@@ -5239,6 +5239,7 @@ name = "yellowstone-grpc-geyser"
 version = "1.13.0+solana.1.17.28"
 dependencies = [
  "anyhow",
+ "async-stream",
  "base64 0.21.7",
  "bincode",
  "bs58",

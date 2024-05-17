@@ -1,7 +1,12 @@
-use std::pin::Pin;
-use std::time::SystemTime;
-use futures::{StreamExt, TryStreamExt};
+use crate::THROTTLE_ACCOUNT_LOGGING;
+use async_stream::__private::AsyncStream;
+use async_stream::stream;
+use futures::{Stream, StreamExt, TryStreamExt};
 use log::{debug, warn};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::SystemTime;
+use tokio::sync::mpsc::Receiver;
 use {
     crate::{
         config::{ConfigBlockFailAction, ConfigGrpc},
@@ -58,7 +63,6 @@ use {
         },
     },
 };
-use crate::THROTTLE_ACCOUNT_LOGGING;
 
 #[derive(Debug, Clone)]
 pub struct MessageAccountInfo {
@@ -730,7 +734,7 @@ impl GrpcService {
             None => {
                 info!("snapshot channel is disabled");
                 (None, None)
-            },
+            }
         };
 
         // Blocks meta storage
@@ -744,7 +748,10 @@ impl GrpcService {
 
         // Messages to clients combined by commitment
         let (broadcast_tx, _) = broadcast::channel(config.channel_capacity);
-        info!("init broadcast channel with capacity: {}", config.channel_capacity);
+        info!(
+            "init broadcast channel with capacity: {}",
+            config.channel_capacity
+        );
 
         // gRPC server builder with optional TLS
         let mut server_builder = Server::builder();
@@ -1232,7 +1239,7 @@ impl GrpcService {
 
 #[tonic::async_trait]
 impl Geyser for GrpcService {
-    type SubscribeStream = ReceiverStream<TonicResult<SubscribeUpdate>>;
+    type SubscribeStream = TimeTaggingReceiverStream;
 
     async fn subscribe(
         &self,
@@ -1255,12 +1262,15 @@ impl Geyser for GrpcService {
         )
         .expect("empty filter");
         let snapshot_rx = self.snapshot_rx.lock().await.take();
-        let (stream_tx, stream_rx) = mpsc::channel(if snapshot_rx.is_some() {
+        let (stream_tx, mut stream_rx) = mpsc::channel(if snapshot_rx.is_some() {
             self.config.snapshot_client_channel_capacity
         } else {
             self.config.channel_capacity
         });
-        info!("client #{id}: create channel with capacity {}", stream_tx.max_capacity());
+        info!(
+            "client #{id}: create channel with capacity {}",
+            stream_tx.max_capacity()
+        );
 
         let (client_tx, client_rx) = mpsc::unbounded_channel();
         let notify_exit1 = Arc::new(Notify::new());
@@ -1352,10 +1362,7 @@ impl Geyser for GrpcService {
             },
         ));
 
-        let (out_tx, out_rx) = tokio::sync::mpsc::channel(1000);
-        spawn_plugger_mpcs(stream_rx, out_tx);
-
-        Ok(Response::new(ReceiverStream::new(out_rx)))
+        Ok(Response::new(TimeTaggingReceiverStream::new(stream_rx)))
     }
 
     async fn ping(&self, request: Request<PingRequest>) -> Result<Response<PongResponse>, Status> {
@@ -1448,46 +1455,43 @@ impl Geyser for GrpcService {
     }
 }
 
-fn spawn_plugger_mpcs(
-    mut upstream: tokio::sync::mpsc::Receiver<Result<SubscribeUpdate, Status>>,
-    downstream: tokio::sync::mpsc::Sender<Result<SubscribeUpdate, Status>>,
-) {
 
-    // abort forwarder by closing the sender
-    let _private_handler = tokio::spawn(async move {
-        while let Some(value) = upstream.recv().await {
+#[derive(Debug)]
+pub struct TimeTaggingReceiverStream {
+    inner: Receiver<TonicResult<SubscribeUpdate>>,
+}
 
-            if let Ok(ref message) = value {
-                match message.update_oneof.as_ref().unwrap() {
-                    UpdateOneof::Account(update) => {
+impl TimeTaggingReceiverStream {
+    pub fn new(recv: Receiver<TonicResult<SubscribeUpdate>>) -> Self {
+        Self { inner: recv }
+    }
+}
 
-                        if let Some(ref account_info) = update.account {
-                            if account_info.write_version % THROTTLE_ACCOUNT_LOGGING == 0 {
-                                let now = SystemTime::now();
-                                let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+impl Stream for TimeTaggingReceiverStream {
+    type Item = TonicResult<SubscribeUpdate>;
 
-                                info!("account update inspect before sending to grpc stream: write_version={};timestamp_us={};slot={}",
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let item = self.inner.poll_recv(cx);
+
+        if let Poll::Ready(Some(Ok(message))) = &item {
+            match message.update_oneof.as_ref().unwrap() {
+                UpdateOneof::Account(update) => {
+                    if let Some(ref account_info) = update.account {
+                        if account_info.write_version % THROTTLE_ACCOUNT_LOGGING == 0 {
+                            let now = SystemTime::now();
+                            let since_the_epoch = now
+                                .duration_since(SystemTime::UNIX_EPOCH)
+                                .expect("Time went backwards");
+
+                            info!("account update inspect before sending to grpc stream: write_version={};timestamp_us={};slot={}",
                                     account_info.write_version, since_the_epoch.as_micros(), update.slot);
-                            }
                         }
-
-                        // message is put in bounded queue which gets consumed by GRPC receiver
-                        info!("client: inspect message last - {}", update.slot);
                     }
-                    _ => {}
                 }
-            }
-
-            match downstream.send(value).await {
-                Ok(()) => {
-                    trace!("forwarded message on mpsc");
-                }
-                Err(_dropped_msg) => {
-                    // decide to continue if no subscribers
-                    debug!("no subscribers - dropping payload and continue");
-                }
+                _ => {}
             }
         }
-        debug!("no more messages from producer - shutting down connector");
-    });
+
+        item
+    }
 }

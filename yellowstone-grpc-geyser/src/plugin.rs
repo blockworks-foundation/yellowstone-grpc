@@ -1,9 +1,11 @@
-use std::io;
-use std::io::{BufReader, BufWriter, Write};
-use std::time::{Instant, SystemTime};
+use crate::grpc::{MessageAccount, MessageAccountInfo};
+use crate::THROTTLE_ACCOUNT_LOGGING;
 use log::{debug, info, warn};
 use solana_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfoV3;
 use solana_sdk::pubkey::Pubkey;
+use std::io;
+use std::io::{BufReader, BufWriter, Write};
+use std::time::{Instant, SystemTime};
 use tokio::sync::mpsc::error::SendError;
 use {
     crate::{
@@ -29,8 +31,6 @@ use {
         sync::{mpsc, Notify},
     },
 };
-use crate::grpc::{MessageAccount, MessageAccountInfo};
-use crate::THROTTLE_ACCOUNT_LOGGING;
 
 #[derive(Debug)]
 pub struct PluginInner {
@@ -45,7 +45,7 @@ impl PluginInner {
     fn send_message(&self, message: Message) {
         match self.grpc_channel.send(message) {
             Ok(()) => {
-            MESSAGE_QUEUE_SIZE.inc();
+                MESSAGE_QUEUE_SIZE.inc();
             }
             Err(_send_error) => {
                 warn!("failed to send message to grpc channel: channel closed");
