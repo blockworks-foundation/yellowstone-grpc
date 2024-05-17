@@ -1087,7 +1087,7 @@ impl GrpcService {
                     Some(Some(filter_new)) => {
                         if let Some(msg) = filter_new.get_pong_msg() {
                             if stream_tx.send(Ok(msg)).await.is_err() {
-                                error!("client #{id}: stream closed");
+                                warn!("client #{id}: stream closed");
                                 is_alive = false;
                                 break;
                             }
@@ -1128,7 +1128,7 @@ impl GrpcService {
 
                 for message in filter.get_update(&message, None) {
                     if stream_tx.send(Ok(message)).await.is_err() {
-                        error!("client #{id}: stream closed");
+                        warn!("client #{id}: stream closed");
                         is_alive = false;
                         break;
                     }
@@ -1144,7 +1144,7 @@ impl GrpcService {
                             Some(Some(filter_new)) => {
                                 if let Some(msg) = filter_new.get_pong_msg() {
                                     if stream_tx.send(Ok(msg)).await.is_err() {
-                                        error!("client #{id}: stream closed");
+                                        warn!("client #{id}: stream closed");
                                         break 'outer;
                                     }
                                     continue;
@@ -1189,7 +1189,7 @@ impl GrpcService {
                                             break 'outer;
                                         }
                                         Err(mpsc::error::TrySendError::Closed(_)) => {
-                                            error!("client #{id}: stream closed");
+                                            warn!("client #{id}: stream closed");
                                             break 'outer;
                                         }
                                     }
