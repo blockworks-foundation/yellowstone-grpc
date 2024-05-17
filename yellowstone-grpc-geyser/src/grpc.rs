@@ -1,3 +1,6 @@
+use std::pin::Pin;
+use futures::{StreamExt, TryStreamExt};
+use log::{debug, warn};
 use {
     crate::{
         config::{ConfigBlockFailAction, ConfigGrpc},
@@ -1179,6 +1182,15 @@ impl GrpcService {
                         if commitment == filter.get_commitment_level() {
                             for message in messages.iter() {
                                 for message in filter.get_update(message, Some(commitment)) {
+
+                                    match message.update_oneof.as_ref().unwrap() {
+                                        UpdateOneof::Account(update) => {
+                                            // message is put in bounded queue which gets consumed by GRPC receiver
+                                            info!("client #{id}: inspect message - {}", update.slot);
+                                        }
+                                        _ => {}
+                                    }
+
                                     match stream_tx.try_send(Ok(message)) {
                                         Ok(()) => {}
                                         Err(mpsc::error::TrySendError::Full(_)) => {
@@ -1329,7 +1341,10 @@ impl Geyser for GrpcService {
             },
         ));
 
-        Ok(Response::new(ReceiverStream::new(stream_rx)))
+        let (out_tx, out_rx) = tokio::sync::mpsc::channel(1000);
+        spawn_plugger_mpcs(stream_rx, out_tx);
+
+        Ok(Response::new(ReceiverStream::new(out_rx)))
     }
 
     async fn ping(&self, request: Request<PingRequest>) -> Result<Response<PongResponse>, Status> {
@@ -1420,4 +1435,36 @@ impl Geyser for GrpcService {
             version: serde_json::to_string(&GrpcVersionInfo::default()).unwrap(),
         }))
     }
+}
+
+fn spawn_plugger_mpcs(
+    mut upstream: tokio::sync::mpsc::Receiver<Result<SubscribeUpdate, Status>>,
+    downstream: tokio::sync::mpsc::Sender<Result<SubscribeUpdate, Status>>,
+) {
+    // abort forwarder by closing the sender
+    let _private_handler = tokio::spawn(async move {
+        while let Some(value) = upstream.recv().await {
+
+            if let Ok(ref message) = value {
+                match message.update_oneof.as_ref().unwrap() {
+                    UpdateOneof::Account(update) => {
+                        // message is put in bounded queue which gets consumed by GRPC receiver
+                        info!("client: inspect message last - {}", update.slot);
+                    }
+                    _ => {}
+                }
+            }
+
+            match downstream.send(value).await {
+                Ok(()) => {
+                    trace!("forwarded message on mpsc");
+                }
+                Err(_dropped_msg) => {
+                    // decide to continue if no subscribers
+                    debug!("no subscribers - dropping payload and continue");
+                }
+            }
+        }
+        debug!("no more messages from producer - shutting down connector");
+    });
 }
