@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use crate::THROTTLE_ACCOUNT_LOGGING;
 use async_stream::__private::AsyncStream;
 use async_stream::stream;
@@ -5,7 +6,8 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use log::{debug, warn};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::SystemTime;
+use std::time::{SystemTime};
+use itertools::Itertools;
 use tokio::sync::mpsc::Receiver;
 use {
     crate::{
@@ -63,6 +65,7 @@ use {
         },
     },
 };
+use crate::histogram_stats_calculation::calculate_percentiles;
 
 #[derive(Debug, Clone)]
 pub struct MessageAccountInfo {
@@ -1351,10 +1354,30 @@ impl Geyser for GrpcService {
 
         let stream_tx_foo = stream_tx.clone();
         tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_millis(20)).await;
 
-                info!("client #{id}: stream_tx fill: {}", stream_tx_foo.max_capacity() - stream_tx_foo.capacity());
+            const SIZE: usize = 1000;
+            let mut ring_buffer = VecDeque::with_capacity(SIZE);
+
+
+            let mut max_delta = 0;
+            for i in 0.. {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+
+                let delta = stream_tx_foo.max_capacity() - stream_tx_foo.capacity();
+
+                max_delta = max_delta.max(delta);
+                // info!("client #{id}: stream_tx fill: {}", delta);
+                ring_buffer.truncate(SIZE - 1);
+                ring_buffer.push_front(delta);
+
+                info!("client #{id}: stream_tx fill: {} max={}", delta, max_delta);
+                // info!("client #{id}: stream_tx fill: {:?}", ring_buffer);
+                if ring_buffer.len() == SIZE && i % 100 == 0 {
+                    let vec_float = ring_buffer.iter().sorted().map(|x| *x as f64).collect_vec();
+                    let percentiles = calculate_percentiles(&vec_float);
+                    info!("client #{id}: stream_tx fill percentiles: {}", percentiles);
+                }
+
             }
         });
 

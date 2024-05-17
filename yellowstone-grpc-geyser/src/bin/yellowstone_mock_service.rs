@@ -59,7 +59,9 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         let sizes = vec![
             0, 8, 8, 165, 165, 165, 165, 11099, 11099, 11099, 11099, 11099, 11099,
         ];
-        const target_bytes_total: usize = 10_000_000;
+        // 10MB -> stream buffer size peaks at 30
+        // 30MB -> stream buffer size peaks at 10000th and more
+        const TARGET_BYTES_TOTAL: usize = 30_000_000;
         let mut bytes_total = 0;
 
         let mut requested_sizes: Vec<usize> = Vec::new();
@@ -67,7 +69,7 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         for i in 0..99_999_999 {
             let data_size = sizes[i % sizes.len()];
 
-            if bytes_total + data_size > target_bytes_total {
+            if bytes_total + data_size > TARGET_BYTES_TOTAL {
                 break;
             }
 

@@ -5312,6 +5312,7 @@ dependencies = [
  "git-version",
  "hostname",
  "hyper",
+ "itertools 0.10.5",
  "lazy_static",
  "log",
  "lz4_flex",
