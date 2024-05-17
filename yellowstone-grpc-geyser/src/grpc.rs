@@ -58,6 +58,7 @@ use {
         },
     },
 };
+use crate::THROTTLE_ACCOUNT_LOGGING;
 
 #[derive(Debug, Clone)]
 pub struct MessageAccountInfo {
@@ -1184,15 +1185,18 @@ impl GrpcService {
                             for message in messages.iter() {
                                 for message in filter.get_update(message, Some(commitment)) {
 
+
                                     match message.update_oneof.as_ref().unwrap() {
                                         UpdateOneof::Account(update) => {
                                             // message is put in bounded queue which gets consumed by GRPC receiver
                                             if let Some(ref account_info) = update.account {
-                                                let now = SystemTime::now();
-                                                let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+                                                if account_info.write_version % THROTTLE_ACCOUNT_LOGGING == 0 {
+                                                    let now = SystemTime::now();
+                                                    let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
 
-                                                info!("account update inspect before sending to buffer channel: write_version={};timestamp_us={};slot={}",
-                                                    account_info.write_version, since_the_epoch.as_micros(), update.slot);
+                                                    info!("account update inspect before sending to buffer channel: write_version={};timestamp_us={};slot={}",
+                                                        account_info.write_version, since_the_epoch.as_micros(), update.slot);
+                                                }
                                             }
                                         }
                                         _ => {}
@@ -1458,11 +1462,13 @@ fn spawn_plugger_mpcs(
                     UpdateOneof::Account(update) => {
 
                         if let Some(ref account_info) = update.account {
-                            let now = SystemTime::now();
-                            let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+                            if account_info.write_version % THROTTLE_ACCOUNT_LOGGING == 0 {
+                                let now = SystemTime::now();
+                                let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
 
-                            info!("account update inspect before sending to grpc stream: write_version={};timestamp_us={};slot={}",
-                                account_info.write_version, since_the_epoch.as_micros(), update.slot);
+                                info!("account update inspect before sending to grpc stream: write_version={};timestamp_us={};slot={}",
+                                    account_info.write_version, since_the_epoch.as_micros(), update.slot);
+                            }
                         }
 
                         // message is put in bounded queue which gets consumed by GRPC receiver

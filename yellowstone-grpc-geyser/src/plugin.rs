@@ -30,6 +30,7 @@ use {
     },
 };
 use crate::grpc::{MessageAccount, MessageAccountInfo};
+use crate::THROTTLE_ACCOUNT_LOGGING;
 
 #[derive(Debug)]
 pub struct PluginInner {
@@ -170,11 +171,13 @@ impl GeyserPlugin for Plugin {
                 //     Message::Account((account, slot, is_startup).into())
                 // };
 
-                let now = SystemTime::now();
-                let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+                if account.write_version % THROTTLE_ACCOUNT_LOGGING == 0 {
+                    let now = SystemTime::now();
+                    let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
 
-                info!("account update inspect from geyser: write_version={};timestamp_us={};slot={}",
-                                                    account.write_version, since_the_epoch.as_micros(), slot);
+                    info!("account update inspect from geyser: write_version={};timestamp_us={};slot={}",
+                                                        account.write_version, since_the_epoch.as_micros(), slot);
+                }
 
                 let message = Message::Account((account, slot, is_startup).into());
 

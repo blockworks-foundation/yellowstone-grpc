@@ -8,3 +8,6 @@ pub mod grpc;
 pub mod plugin;
 pub mod prom;
 pub mod version;
+
+// log every X account write
+pub const THROTTLE_ACCOUNT_LOGGING: u64 = 50;
