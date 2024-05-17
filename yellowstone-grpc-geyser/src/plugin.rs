@@ -1,6 +1,6 @@
 use std::io;
 use std::io::{BufReader, BufWriter, Write};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 use log::{debug, info, warn};
 use solana_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfoV3;
 use solana_sdk::pubkey::Pubkey;
@@ -153,22 +153,30 @@ impl GeyserPlugin for Plugin {
                 }
             } else {
 
-                let message = if account.data.len() > 1_000 {
-                    let started_at = Instant::now();
-                    let compressed_data = lz4_flex::compress_prepend_size(&account.data);
-                    let elapsed_us = started_at.elapsed().as_micros();
-                    let replica = ReplicaAccountInfoV3 {
-                        data: &compressed_data,
-                        ..account.clone()
-                    };
-                        let pubkey = Pubkey::try_from(account.pubkey).unwrap();
-                        info!("LZ4 compressed account data in {}us: {} -> {} of {}",
-                            elapsed_us, account.data.len(), compressed_data.len(), pubkey);
+                // let message = if account.data.len() > 1_000 {
+                //     let started_at = Instant::now();
+                //     let compressed_data = lz4_flex::compress_prepend_size(&account.data);
+                //     let elapsed_us = started_at.elapsed().as_micros();
+                //     let replica = ReplicaAccountInfoV3 {
+                //         data: &compressed_data,
+                //         ..account.clone()
+                //     };
+                //         let pubkey = Pubkey::try_from(account.pubkey).unwrap();
+                //         info!("LZ4 compressed account data in {}us: {} -> {} of {}",
+                //             elapsed_us, account.data.len(), compressed_data.len(), pubkey);
+                //
+                //     Message::Account((&replica, slot, is_startup).into())
+                // } else {
+                //     Message::Account((account, slot, is_startup).into())
+                // };
 
-                    Message::Account((&replica, slot, is_startup).into())
-                } else {
-                    Message::Account((account, slot, is_startup).into())
-                };
+                let now = SystemTime::now();
+                let since_the_epoch = now.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+
+                info!("account update inspect from geyser: write_version={};timestamp_us={};slot={}",
+                                                    account.write_version, since_the_epoch.as_micros(), slot);
+
+                let message = Message::Account((account, slot, is_startup).into());
 
                 inner.send_message(message);
             }
