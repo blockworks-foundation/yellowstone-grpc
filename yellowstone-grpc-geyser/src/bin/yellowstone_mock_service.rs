@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use rand::distributions::Standard;
 use rand::{random, thread_rng, Rng, RngCore};
 use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPluginError;
@@ -8,6 +8,7 @@ use solana_sdk::recent_blockhashes_account::update_account;
 use std::ops::Add;
 use std::thread::{sleep, spawn};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use log::{debug, info};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Instant;
 use yellowstone_grpc_geyser::config::{ConfigBlockFailAction, ConfigGrpc, ConfigGrpcFilters};
@@ -18,6 +19,9 @@ use yellowstone_grpc_proto::geyser::CommitmentLevel;
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+    info!("starting mock service");
+
     let config_grpc = ConfigGrpc {
         address: "127.0.0.1:50001".parse().unwrap(),
         tls_config: None,
@@ -38,7 +42,7 @@ async fn main() {
     tokio::spawn(mainnet_traffic(grpc_channel));
 
     loop {
-        println!("MOCK STILL RUNNING");
+        debug!("MOCK STILL RUNNING");
         sleep(Duration::from_millis(1000));
     }
 }
@@ -55,7 +59,7 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         let sizes = vec![
             0, 8, 8, 165, 165, 165, 165, 11099, 11099, 11099, 11099, 11099, 11099,
         ];
-        const target_bytes_total: usize = 30_000_000;
+        const target_bytes_total: usize = 10_000_000;
         let mut bytes_total = 0;
 
         let mut requested_sizes: Vec<usize> = Vec::new();
@@ -83,10 +87,11 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
             let next_message_at =
                 slot_started_at.add(Duration::from_secs_f64(avg_delay * i as f64));
 
-            let data: Vec<u8> = thread_rng()
-                .sample_iter(&Standard)
-                .take(data_bytes)
-                .collect();
+            let account_build_started_at = Instant::now();
+            let mut data = BytesMut::with_capacity(data_bytes);
+            fill_with_xor_prng(data.as_mut());
+            let data = data.to_vec();
+
             // using random slows down everything - could be the generator PRNG or the entropy preventing compression
             // let data: Vec<u8> = thread_rng().sample_iter(&Standard).take(data_bytes).collect();
 
@@ -106,6 +111,10 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
                 slot,
                 is_startup: false,
             };
+
+            let elapsed = account_build_started_at.elapsed();
+            // 0.25us
+            debug!("time consumed to build fake account message: {:.2}us", elapsed.as_secs_f64() * 1_000_000.0);
 
             grpc_channel
                 .send(Message::Account(update_account))
@@ -168,5 +177,23 @@ async fn helloworld_traffic(grpc_channel: UnboundedSender<Message>) {
         println!("sent account update down the stream");
 
         tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+fn fill_with_xor_prng(binary: &mut [u8]) {
+    // seed only first have of the binary; the sond half will be all 111
+    let seed_n = binary.len() / 2;
+    let mut state: u32 = 0xdeadbeef;
+    for i_word in 0..seed_n / 4 {
+        let mut x = state;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        state = x;
+
+        binary[i_word * 4 + 0] = (x >> 0) as u8;
+        binary[i_word * 4 + 1] = (x >> 8) as u8;
+        binary[i_word * 4 + 2] = (x >> 16) as u8;
+        binary[i_word * 4 + 3] = (x >> 24) as u8;
     }
 }
