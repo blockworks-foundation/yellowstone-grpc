@@ -61,6 +61,7 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         ];
         // 10MB -> stream buffer size peaks at 30
         // 30MB -> stream buffer size peaks at 10000th and more
+        // per slot
         const TARGET_BYTES_TOTAL: usize = 30_000_000;
         let mut bytes_total = 0;
 

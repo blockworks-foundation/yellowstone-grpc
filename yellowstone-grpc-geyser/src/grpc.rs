@@ -1242,7 +1242,8 @@ impl GrpcService {
 
 #[tonic::async_trait]
 impl Geyser for GrpcService {
-    type SubscribeStream = TimeTaggingReceiverStream;
+    // type SubscribeStream = TimeTaggingReceiverStream;
+    type SubscribeStream = ReceiverStream<TonicResult<SubscribeUpdate>>;
 
     async fn subscribe(
         &self,
@@ -1420,9 +1421,10 @@ impl Geyser for GrpcService {
         //
         // let (dummy_stream_tx, dummy_stream_rx) = mpsc::channel(10);
         //
-        // Ok(Response::new(TimeTaggingReceiverStream::new(dummy_stream_rx)))
 
-        Ok(Response::new(TimeTaggingReceiverStream::new(stream_rx)))
+        // also need to change line "type SubscribeStream "
+        // Ok(Response::new(TimeTaggingReceiverStream::new(stream_rx)))
+        Ok(Response::new(ReceiverStream::new(stream_rx)))
     }
 
     async fn ping(&self, request: Request<PingRequest>) -> Result<Response<PongResponse>, Status> {
