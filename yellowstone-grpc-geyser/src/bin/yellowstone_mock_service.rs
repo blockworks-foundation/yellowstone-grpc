@@ -78,7 +78,8 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
         }
 
         println!(
-            "will send account updates down the stream ({} bytes) in {} messages",
+            "will send account updates for slot {} down the stream ({} bytes) in {} messages",
+            slot,
             bytes_total,
             requested_sizes.len()
         );
