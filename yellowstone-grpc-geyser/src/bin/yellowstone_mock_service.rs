@@ -58,9 +58,9 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
 
         let sizes = vec![
             // mainnet distribution
-            // 0, 8, 8, 165, 165, 165, 165, 11099, 11099, 11099, 11099, 11099, 11099,
+            0, 8, 8, 165, 165, 165, 165, 11099, 11099, 11099, 11099, 11099, 11099,
             // shape with a lot larger sizes
-            200000, 220000, 230000,
+            // 200000, 220000, 230000,
         ];
         // 10MB -> stream buffer size peaks at 30
         // 30MB -> stream buffer size peaks at 10000th and more
