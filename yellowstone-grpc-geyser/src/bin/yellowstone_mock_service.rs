@@ -89,9 +89,10 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
             let next_message_at =
                 slot_started_at.add(Duration::from_secs_f64(avg_delay * i as f64));
 
+
             let account_build_started_at = Instant::now();
-            let mut data = BytesMut::with_capacity(data_bytes);
-            fill_with_xor_prng(data.as_mut());
+            let mut data = vec![0; data_bytes];
+            fill_with_xor_prng(&mut data);
             let data = data.to_vec();
 
             // using random slows down everything - could be the generator PRNG or the entropy preventing compression
@@ -117,6 +118,7 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
             let elapsed = account_build_started_at.elapsed();
             // 0.25us
             debug!("time consumed to build fake account message: {:.2}us", elapsed.as_secs_f64() * 1_000_000.0);
+
 
             grpc_channel
                 .send(Message::Account(update_account))
