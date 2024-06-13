@@ -186,8 +186,7 @@ async fn helloworld_traffic(grpc_channel: UnboundedSender<Message>) {
 }
 
 fn fill_with_xor_prng(binary: &mut [u8]) {
-    // seed only first have of the binary; the sond half will be all 111
-    let seed_n = binary.len() / 2;
+    let seed_n = binary.len();
     let mut state: u32 = 0xdeadbeef;
     for i_word in 0..seed_n / 4 {
         let mut x = state;
