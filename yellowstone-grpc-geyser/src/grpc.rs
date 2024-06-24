@@ -7,7 +7,7 @@ use {
     },
     anyhow::Context,
     log::{error, info},
-    solana_geyser_plugin_interface::geyser_plugin_interface::{
+    agave_geyser_plugin_interface::geyser_plugin_interface::{
         ReplicaAccountInfoV3, ReplicaBlockInfoV3, ReplicaEntryInfoV2, ReplicaTransactionInfoV2,
         SlotStatus,
     },

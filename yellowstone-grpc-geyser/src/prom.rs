@@ -8,7 +8,7 @@ use {
     },
     log::error,
     prometheus::{IntCounterVec, IntGauge, IntGaugeVec, Opts, Registry, TextEncoder},
-    solana_geyser_plugin_interface::geyser_plugin_interface::SlotStatus,
+    agave_geyser_plugin_interface::geyser_plugin_interface::SlotStatus,
     solana_sdk::clock::Slot,
     std::{
         collections::{hash_map::Entry as HashMapEntry, HashMap},
