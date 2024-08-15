@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
 use bytes::{Bytes, BytesMut};
@@ -11,6 +12,8 @@ use std::ops::{Add, Sub};
 use std::str::FromStr;
 use std::thread::{sleep, spawn};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use futures::stream::once;
+use futures::StreamExt;
 use itertools::Itertools;
 use log::{debug, info, trace};
 use solana_sdk::signer::SignerError::KeypairPubkeyMismatch;
@@ -20,7 +23,8 @@ use yellowstone_grpc_geyser::config::{ConfigBlockFailAction, ConfigGrpc, ConfigG
 use yellowstone_grpc_geyser::grpc::{
     GrpcService, Message, MessageAccount, MessageAccountInfo, MessageBlockMeta, MessageSlot,
 };
-use yellowstone_grpc_proto::geyser::CommitmentLevel;
+use yellowstone_grpc_proto::geyser::{CommitmentLevel, SubscribeRequest, SubscribeRequestFilterAccounts, SubscribeRequestFilterSlots};
+use yellowstone_grpc_proto::geyser::geyser_client::GeyserClient;
 
 const RAYDIUM_AMM_PUBKEY: &'static str = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8";
 
@@ -47,6 +51,7 @@ async fn main() {
             .unwrap();
 
     tokio::spawn(mainnet_traffic(grpc_channel));
+    tokio::spawn(grpc_client());
 
     loop {
         debug!("MOCK STILL RUNNING");
@@ -162,3 +167,44 @@ async fn mainnet_traffic(grpc_channel: UnboundedSender<Message>) {
 
 
 }
+
+
+async fn grpc_client() {
+
+    let mut client = GeyserClient::connect("http://localhost:50001").await.expect("connected");
+    let mut stream = client.subscribe(once(async move { subscribe_request() })).await.expect("subscripbe").into_inner();
+
+    loop {
+        let response = stream.next().await.expect("response");
+        info!("response: {:?}", response);
+    }
+
+}
+
+
+fn subscribe_request() -> SubscribeRequest {
+    let mut slot_subs = HashMap::new();
+    slot_subs.insert("client".to_string(), SubscribeRequestFilterSlots {
+        // implies all slots
+        filter_by_commitment: None,
+    });
+    let mut accounts_subs = HashMap::new();
+    accounts_subs.insert(
+        "client".to_string(),
+        SubscribeRequestFilterAccounts {
+            account: vec![],
+            owner: vec!["whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc".to_string()], // orca
+            filters: vec![],
+        },
+    );
+
+    SubscribeRequest {
+        slots: slot_subs,
+        accounts: accounts_subs,
+        ping: None,
+        // implies accounts at processed level
+        commitment: None,
+        ..Default::default()
+    }
+}
+
