@@ -1212,6 +1212,7 @@ impl GrpcService {
                                         _ => {}
                                     }
 
+                                    // the receiver side of stream_tx is wired to the gRPC response stream
                                     match stream_tx.try_send(Ok(message)) {
                                         Ok(()) => {}
                                         Err(mpsc::error::TrySendError::Full(_)) => {
@@ -1371,12 +1372,12 @@ impl Geyser for GrpcService {
                 ring_buffer.truncate(SIZE - 1);
                 ring_buffer.push_front(delta);
 
-                info!("client #{id}: stream_tx fill: {} max={}", delta, max_delta);
+                trace!("client #{id}: stream_tx fill: {} max={}", delta, max_delta);
                 // info!("client #{id}: stream_tx fill: {:?}", ring_buffer);
                 if ring_buffer.len() == SIZE && i % 100 == 0 {
                     let vec_float = ring_buffer.iter().sorted().map(|x| *x as f64).collect_vec();
                     let percentiles = calculate_percentiles(&vec_float);
-                    info!("client #{id}: stream_tx fill percentiles: {}", percentiles);
+                    trace!("client #{id}: stream_tx fill percentiles: {}", percentiles);
                 }
 
             }
