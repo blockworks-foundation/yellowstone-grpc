@@ -32,29 +32,35 @@ const RAYDIUM_AMM_PUBKEY: &'static str = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFS
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    grpc_client().await;
 
+    tokio::spawn(grpc_client1());
+    tokio::spawn(grpc_client2());
+
+    loop {
+        debug!("CLIENT STILL RUNNING");
+        sleep(Duration::from_millis(5000));
+    }
 }
 
-
-async fn grpc_client() {
+async fn grpc_client1() {
 
     let grpc_addr = std::env::var("GRPC_ADDR").expect("need grpc url");
 
 
     let mut client = GeyserClient::connect(grpc_addr).await.expect("connected");
-    let mut stream = client.subscribe(once(async move { subscribe_request() })).await.expect("subscripbe").into_inner();
+    let mut stream = client.subscribe(once(async move { subscribe_processed_slots() })).await.expect("subscripbe").into_inner();
+
 
     loop {
         let response = stream.next().await.expect("response");
         match response.unwrap().update_oneof.unwrap() {
             UpdateOneof::Slot(update_slot) => {
-                if update_slot.status == 0 {
-                    info!("slot {} ({})", update_slot.slot, update_slot.status);
-                }
+                assert_eq!(update_slot.status, 0, "processed only - fix your subscription");
+                info!("SLT slot {} ({})", update_slot.slot, update_slot.status);
             }
             UpdateOneof::Account(update_acount) => {
-                info!("account write at {}", update_acount.slot);
+                info!("SLOT account write at {}", update_acount.slot);
+                unreachable!("should not be here");
             }
             _ => {
                 panic!("other");
@@ -65,11 +71,84 @@ async fn grpc_client() {
 }
 
 
-fn subscribe_request() -> SubscribeRequest {
+
+
+async fn grpc_client2() {
+
+    let grpc_addr = std::env::var("GRPC_ADDR").expect("need grpc url");
+
+
+    let mut client = GeyserClient::connect(grpc_addr).await.expect("connected");
+    let mut stream = client.subscribe(once(async move { subscribe_orca() })).await.expect("subscripbe").into_inner();
+
+
+    loop {
+        let response = stream.next().await.expect("response");
+        match response.unwrap().update_oneof.unwrap() {
+            UpdateOneof::Slot(update_slot) => {
+                assert_eq!(update_slot.status, 0, "processed only - fix your subscription");
+                info!("ORCA slot {} ({})", update_slot.slot, update_slot.status);
+                unreachable!("should not be here");
+            }
+            UpdateOneof::Account(update_acount) => {
+                info!("ORCA account write at {}", update_acount.slot);
+            }
+            _ => {
+                panic!("other");
+            }
+        }
+    }
+
+}
+
+
+
+
+fn subscribe_processed_slots() -> SubscribeRequest {
     let mut slot_subs = HashMap::new();
     slot_subs.insert("client".to_string(), SubscribeRequestFilterSlots {
-        // implies all slots
-        filter_by_commitment: None,
+        // one processed
+        filter_by_commitment: Some(true),
+    });
+
+    SubscribeRequest {
+        slots: slot_subs,
+        ping: None,
+        // implies accounts at processed level
+        commitment: Some(0), // TODO clarify
+        ..Default::default()
+    }
+}
+
+
+fn subscribe_orca() -> SubscribeRequest {
+    let mut accounts_subs = HashMap::new();
+    accounts_subs.insert(
+        "client".to_string(),
+        SubscribeRequestFilterAccounts {
+            account: vec![],
+            owner: vec!["whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc".to_string()], // orca
+            filters: vec![],
+        },
+    );
+
+    SubscribeRequest {
+        accounts: accounts_subs,
+        ping: None,
+        // implies accounts at processed level
+        commitment: Some(0), // TODO clarify
+        ..Default::default()
+    }
+}
+
+
+
+
+fn subscribe_combined_request() -> SubscribeRequest {
+    let mut slot_subs = HashMap::new();
+    slot_subs.insert("client".to_string(), SubscribeRequestFilterSlots {
+        // one processed
+        filter_by_commitment: Some(true),
     });
     let mut accounts_subs = HashMap::new();
     accounts_subs.insert(
@@ -86,7 +165,7 @@ fn subscribe_request() -> SubscribeRequest {
         accounts: accounts_subs,
         ping: None,
         // implies accounts at processed level
-        commitment: None,
+        commitment: Some(0), // TODO clarify
         ..Default::default()
     }
 }
