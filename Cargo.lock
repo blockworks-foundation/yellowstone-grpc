@@ -724,9 +724,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.5.0"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
+checksum = "8318a53db07bb3f8dca91a600466bdb3f2eaadeedfdbcf02e1accbad9271ba50"
 
 [[package]]
 name = "cargo-lock"
@@ -1893,6 +1893,15 @@ name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -5216,6 +5225,7 @@ dependencies = [
  "base64 0.21.7",
  "bincode",
  "bs58",
+ "bytes",
  "cargo-lock",
  "clap",
  "crossbeam-channel",
@@ -5223,9 +5233,11 @@ dependencies = [
  "git-version",
  "hostname",
  "hyper",
+ "itertools 0.13.0",
  "lazy_static",
  "log",
  "prometheus",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "solana-geyser-plugin-interface",
@@ -5237,6 +5249,7 @@ dependencies = [
  "tokio-stream",
  "tonic 0.10.2",
  "tonic-health",
+ "tracing-subscriber",
  "vergen",
  "yellowstone-grpc-proto",
 ]

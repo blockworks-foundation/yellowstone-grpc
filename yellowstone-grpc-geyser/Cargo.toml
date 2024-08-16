@@ -42,6 +42,11 @@ tonic = { workspace = true, features = ["gzip", "tls", "tls-roots"] }
 tonic-health = { workspace = true }
 yellowstone-grpc-proto = { workspace = true }
 
+tracing-subscriber = "0.3.18"
+itertools = "0.13.0"
+rand = "0.8.5"
+bytes = "1.7.1"
+
 [build-dependencies]
 anyhow = { workspace = true }
 cargo-lock = { workspace = true }
