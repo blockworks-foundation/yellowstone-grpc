@@ -53,7 +53,7 @@ impl GeyserPlugin for Plugin {
         concat!(env!("CARGO_PKG_NAME"), "-", env!("CARGO_PKG_VERSION"))
     }
 
-    fn on_load(&mut self, config_file: &str) -> PluginResult<()> {
+    fn on_load(&mut self, config_file: &str, _:bool) -> PluginResult<()> {
         let config = Config::load_from_file(config_file)?;
 
         // Setup logger
@@ -191,11 +191,14 @@ impl GeyserPlugin for Plugin {
     fn notify_entry(&self, entry: ReplicaEntryInfoVersions) -> PluginResult<()> {
         self.with_inner(|inner| {
             #[allow(clippy::infallible_destructuring_match)]
-            let entry = match entry {
-                ReplicaEntryInfoVersions::V0_0_1(entry) => entry,
+            let message = match entry {
+                ReplicaEntryInfoVersions::V0_0_1(entry) => {
+                    Message::Entry(entry.into())
+                },
+                ReplicaEntryInfoVersions::V0_0_2(entry) => {
+                    todo!()
+                },
             };
-
-            let message = Message::Entry(entry.into());
             inner.send_message(message);
 
             Ok(())
