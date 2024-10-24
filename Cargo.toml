@@ -70,6 +70,16 @@ vergen = "8.2.1"
 yellowstone-grpc-client = { path = "yellowstone-grpc-client", version = "=1.15.0+solana.1.17.6" }
 yellowstone-grpc-proto = { path = "yellowstone-grpc-proto", version = "=1.14.0+solana.1.17.6" }
 
+[patch.crates-io]
+# solar-eclipse: checkout of Eclipse-Laboratories-Inc/solar-eclipse.git version v1.17.6.12
+solana-account-decoder = { path = '../solar-eclipse/account-decoder' }
+solana-geyser-plugin-interface = { path = '../solar-eclipse/geyser-plugin-interface' }
+solana-logger = { path = '../solar-eclipse/logger' }
+solana-sdk = { path = '../solar-eclipse/sdk' }
+solana-transaction-status = { path = '../solar-eclipse/transaction-status' }
+solana-program = { path = '../solar-eclipse/sdk/program' }
+solana-zk-token-sdk = { path = '../solar-eclipse/zk-token-sdk' }
+
 [profile.release]
 debug = true
 lto = true
