@@ -1,14 +1,10 @@
 {
-    "libpath": "../target/debug/libyellowstone_grpc_geyser.so",
+    "libpath": "/home/galactus-node/mangolana/yellowstone-grpc/target/release/libyellowstone_grpc_geyser.so",
     "log": {
         "level": "info"
     },
     "grpc": {
         "address": "0.0.0.0:10000",
-        "tls_config": {
-            "cert_path": "",
-            "key_path": ""
-        },
         "compression": {
             "accept": [
                 "gzip"
@@ -26,8 +22,8 @@
         "x_token": null,
         "filters": {
             "accounts": {
-                "max": 1,
-                "any": false,
+                "max": 10,
+                "any": true,
                 "account_max": 10,
                 "account_reject": [
                     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
@@ -63,7 +59,7 @@
             "blocks": {
                 "max": 1,
                 "account_include_max": 10,
-                "account_include_any": false,
+                "account_include_any": true,
                 "account_include_reject": [
                     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
                 ],

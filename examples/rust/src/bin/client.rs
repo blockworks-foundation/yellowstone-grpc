@@ -5,8 +5,8 @@ use {
     log::{error, info},
     solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionError},
     solana_transaction_status::{EncodedTransactionWithStatusMeta, UiTransactionEncoding},
-    std::{collections::HashMap, env, fmt, fs::File, sync::Arc, time::Duration},
-    tokio::sync::Mutex,
+    std::{collections::{BTreeMap, HashMap}, env, fmt::{self, Display}, fs::File, sync::{atomic::AtomicU64, Arc}, time::Duration},
+    tokio::{sync::Mutex, time::Instant},
     tonic::transport::channel::ClientTlsConfig,
     yellowstone_grpc_client::{GeyserGrpcClient, GeyserGrpcClientError, Interceptor},
     yellowstone_grpc_proto::prelude::{
@@ -48,6 +48,10 @@ struct Args {
     action: Action,
 }
 
+const GPRC_CLIENT_BUFFER_SIZE: usize = 65536; // default: 1024
+const GRPC_CONN_WINDOW: u32 = 5242880; // 5MB
+const GRPC_STREAM_WINDOW: u32 = 4194304; // default: 2MB
+
 impl Args {
     fn get_commitment(&self) -> Option<CommitmentLevel> {
         Some(self.commitment.unwrap_or_default().into())
@@ -58,6 +62,11 @@ impl Args {
             .x_token(self.x_token.clone())?
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(10))
+            .tcp_nodelay(true)
+            .http2_adaptive_window(true)
+            .buffer_size(GPRC_CLIENT_BUFFER_SIZE)
+            .initial_connection_window_size(GRPC_CONN_WINDOW)
+            .initial_stream_window_size(GRPC_STREAM_WINDOW)
             .tls_config(ClientTlsConfig::new().with_native_roots())?
             .connect()
             .await
@@ -598,6 +607,182 @@ async fn geyser_health_watch(mut client: GeyserGrpcClient<impl Interceptor>) -> 
     Ok(())
 }
 
+
+struct Stats<T: Ord + Display + Default + Copy> {
+    container: BTreeMap<T, usize>,
+    count: usize,
+}
+
+impl<T: Ord + Display + Default + Copy> Stats<T> {
+    pub fn new() -> Self {
+        Self {
+            container: BTreeMap::new(),
+            count: 0,
+        }
+    }
+
+    pub fn add_value(&mut self, value: &T) {
+        self.count += 1;
+        match self.container.get_mut(value) {
+            Some(size) => {
+                *size += 1;
+            }
+            None => {
+                self.container.insert(*value, 1);
+            }
+        }
+    }
+
+    pub fn print_stats(&self, name: &str) {
+        if self.count > 0 {
+            let p50_index = self.count / 2;
+            let p75_index = self.count * 3 / 4;
+            let p90_index = self.count * 9 / 10;
+            let p95_index = self.count * 95 / 100;
+            let p99_index = self.count * 99 / 100;
+
+            let mut p50_value = None::<T>;
+            let mut p75_value = None::<T>;
+            let mut p90_value = None::<T>;
+            let mut p95_value = None::<T>;
+            let mut p99_value = None::<T>;
+
+            let mut counter = 0;
+            for (value, size) in self.container.iter() {
+                counter += size;
+                if counter > p50_index && p50_value.is_none() {
+                    p50_value = Some(*value);
+                }
+                if counter > p75_index && p75_value.is_none() {
+                    p75_value = Some(*value);
+                }
+                if counter > p90_index && p90_value.is_none() {
+                    p90_value = Some(*value);
+                }
+                if counter > p95_index && p95_value.is_none() {
+                    p95_value = Some(*value);
+                }
+                if counter > p99_index && p99_value.is_none() {
+                    p99_value = Some(*value);
+                }
+            }
+            let max_value = self
+                .container
+                .last_key_value()
+                .map(|x| *x.0)
+                .unwrap_or_default();
+            println!(
+                "stats {} : p50={}, p75={}, p90={}, p95={}, p99={}, max:{}",
+                name,
+                p50_value.unwrap_or_default(),
+                p75_value.unwrap_or_default(),
+                p90_value.unwrap_or_default(),
+                p95_value.unwrap_or_default(),
+                p99_value.unwrap_or_default(),
+                max_value
+            );
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+struct ClientStats {
+    pub bytes_transfered: Arc<AtomicU64>,
+    pub total_accounts_size: Arc<AtomicU64>,
+    pub slot_notifications: Arc<AtomicU64>,
+    pub account_notification: Arc<AtomicU64>,
+    pub blockmeta_notifications: Arc<AtomicU64>,
+    pub transaction_notifications: Arc<AtomicU64>,
+    pub block_notifications: Arc<AtomicU64>,
+    pub cluster_slot: Arc<AtomicU64>,
+    pub account_slot: Arc<AtomicU64>,
+    pub slot_slot: Arc<AtomicU64>,
+    pub blockmeta_slot: Arc<AtomicU64>,
+    pub block_slot: Arc<AtomicU64>,
+}
+
+async fn print_stats(client_stats: ClientStats) {
+
+        let bytes_transfered: Arc<AtomicU64> = client_stats.bytes_transfered.clone();
+        let slot_notifications = client_stats.slot_notifications.clone();
+        let account_notification = client_stats.account_notification.clone();
+        let blockmeta_notifications = client_stats.blockmeta_notifications.clone();
+        let transaction_notifications = client_stats.transaction_notifications.clone();
+        let total_accounts_size = client_stats.total_accounts_size.clone();
+        let block_notifications = client_stats.block_notifications.clone();
+
+        let cluster_slot = client_stats.cluster_slot.clone();
+        let account_slot = client_stats.account_slot.clone();
+        let slot_slot = client_stats.slot_slot.clone();
+        let blockmeta_slot = client_stats.blockmeta_slot.clone();
+        let block_slot = client_stats.block_slot.clone();
+
+        let mut instant = Instant::now();
+        let mut bytes_transfered_stats = Stats::<u64>::new();
+        let mut slot_notifications_stats = Stats::<u64>::new();
+        let mut account_notification_stats = Stats::<u64>::new();
+        let mut blockmeta_notifications_stats = Stats::<u64>::new();
+        let mut transaction_notifications_stats = Stats::<u64>::new();
+        let mut total_accounts_size_stats = Stats::<u64>::new();
+        let mut block_notifications_stats = Stats::<u64>::new();
+        let mut counter = 0;
+        let start_instance = Instant::now();
+        loop {
+            counter += 1;
+            tokio::time::sleep(Duration::from_secs(1) - instant.elapsed()).await;
+            instant = Instant::now();
+            let bytes_transfered = bytes_transfered.swap(0, std::sync::atomic::Ordering::Relaxed);
+            let total_accounts_size =
+                total_accounts_size.swap(0, std::sync::atomic::Ordering::Relaxed);
+            let account_notification =
+                account_notification.swap(0, std::sync::atomic::Ordering::Relaxed);
+            let slot_notifications =
+                slot_notifications.swap(0, std::sync::atomic::Ordering::Relaxed);
+            let blockmeta_notifications =
+                blockmeta_notifications.swap(0, std::sync::atomic::Ordering::Relaxed);
+            let transaction_notifications =
+                transaction_notifications.swap(0, std::sync::atomic::Ordering::Relaxed);
+            let block_notifications =
+                block_notifications.swap(0, std::sync::atomic::Ordering::Relaxed);
+            bytes_transfered_stats.add_value(&bytes_transfered);
+            total_accounts_size_stats.add_value(&total_accounts_size);
+            slot_notifications_stats.add_value(&slot_notifications);
+            account_notification_stats.add_value(&account_notification);
+            blockmeta_notifications_stats.add_value(&blockmeta_notifications);
+            transaction_notifications_stats.add_value(&transaction_notifications);
+            block_notifications_stats.add_value(&block_notifications);
+
+            log::info!("------------------------------------------");
+            log::info!(
+                " DateTime : {:?}",
+                instant.duration_since(start_instance).as_secs()
+            );
+            log::info!(" Bytes Transfered : {} Mbs/s", bytes_transfered / 1_000_000);
+            log::info!(
+                " Accounts transfered size (uncompressed) : {} Mbs",
+                total_accounts_size / 1_000_000
+            );
+            log::info!(" Accounts Notified : {}", account_notification);
+            log::info!(" Slots Notified : {}", slot_notifications);
+            log::info!(" Blockmeta notified : {}", blockmeta_notifications);
+            log::info!(" Transactions notified : {}", transaction_notifications);
+            log::info!(" Blocks notified : {}", block_notifications);
+
+            log::info!(" Cluster Slots: {}, Account Slot: {}, Slot Notification slot: {}, BlockMeta slot: {}, Block slot: {}", cluster_slot.load(std::sync::atomic::Ordering::Relaxed), account_slot.load(std::sync::atomic::Ordering::Relaxed), slot_slot.load(std::sync::atomic::Ordering::Relaxed), blockmeta_slot.load(std::sync::atomic::Ordering::Relaxed), block_slot.load(std::sync::atomic::Ordering::Relaxed));
+
+            if counter % 10 == 0 {
+                println!("------------------STATS------------------------");
+                bytes_transfered_stats.print_stats("Bytes transfered");
+                total_accounts_size_stats.print_stats("Total account size uncompressed");
+                slot_notifications_stats.print_stats("Slot Notifications");
+                account_notification_stats.print_stats("Account notifications");
+                blockmeta_notifications_stats.print_stats("Block meta Notifications");
+                transaction_notifications_stats.print_stats("Transaction notifications");
+                block_notifications_stats.print_stats("Block Notifications");
+            }
+        }
+}
+
 async fn geyser_subscribe(
     mut client: GeyserGrpcClient<impl Interceptor>,
     request: SubscribeRequest,
@@ -606,16 +791,28 @@ async fn geyser_subscribe(
     let (mut subscribe_tx, mut stream) = client.subscribe_with_request(Some(request)).await?;
 
     info!("stream opened");
+    let client_stats = ClientStats::default();
+    {
+        let client_stats = client_stats.clone();
+        tokio::spawn(async move {print_stats(client_stats).await});
+    }
     let mut counter = 0;
     while let Some(message) = stream.next().await {
         match message {
             Ok(msg) => {
                 match msg.update_oneof {
                     Some(UpdateOneof::Account(account)) => {
-                        let account: AccountPretty = account.into();
-                        info!(
-                            "new account update: filters {:?}, account: {:#?}",
-                            msg.filters, account
+                        client_stats
+                        .account_notification
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let data_len = account.account.map(|x| x.data.len()).unwrap_or_default() as u64;
+                        client_stats
+                            .total_accounts_size
+                            .fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
+                        client_stats.bytes_transfered.fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
+                        client_stats.account_slot.store(
+                            account.slot,
+                            std::sync::atomic::Ordering::Relaxed,
                         );
                         continue;
                     }
