@@ -760,10 +760,10 @@ async fn print_stats(client_stats: ClientStats) {
                 " DateTime : {:?}",
                 instant.duration_since(start_instance).as_secs()
             );
-            log::info!(" Bytes Transfered : {} Mbs/s", bytes_transfered / 1_000_000);
+            log::info!(" Bytes Transfered : {:.3} Mbs/s", bytes_transfered as f64 / 1_000_000.0);
             log::info!(
-                " Accounts transfered size (uncompressed) : {} Mbs",
-                total_accounts_size / 1_000_000
+                " Accounts transfered size (uncompressed) : {:.3} Mbs",
+                total_accounts_size as f64 / 1_000_000.0
             );
             log::info!(" Accounts Notified : {}", account_notification);
             log::info!(" Slots Notified : {}", slot_notifications);
