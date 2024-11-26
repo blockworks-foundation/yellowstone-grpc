@@ -746,7 +746,7 @@ async fn print_stats(client_stats: ClientStats) {
                 transaction_notifications.swap(0, std::sync::atomic::Ordering::Relaxed);
             let block_notifications =
                 block_notifications.swap(0, std::sync::atomic::Ordering::Relaxed);
-            let delay = delay.swap(0, std::sync::atomic::Ordering::Relaxed) / account_notification;
+            let avg_delay_us = delay.swap(0, std::sync::atomic::Ordering::Relaxed) as f64 / account_notification as f64;
             bytes_transfered_stats.add_value(&bytes_transfered);
             total_accounts_size_stats.add_value(&total_accounts_size);
             slot_notifications_stats.add_value(&slot_notifications);
@@ -770,7 +770,7 @@ async fn print_stats(client_stats: ClientStats) {
             log::info!(" Blockmeta notified : {}", blockmeta_notifications);
             log::info!(" Transactions notified : {}", transaction_notifications);
             log::info!(" Blocks notified : {}", block_notifications);
-            log::info!(" Average delay by accounts : {} us", delay);
+            log::info!(" Average delay by accounts : {:.02} ms", avg_delay_us / 1000.0);
 
 
             log::info!(" Cluster Slots: {}, Account Slot: {}, Slot Notification slot: {}, BlockMeta slot: {}, Block slot: {}", cluster_slot.load(std::sync::atomic::Ordering::Relaxed), account_slot.load(std::sync::atomic::Ordering::Relaxed), slot_slot.load(std::sync::atomic::Ordering::Relaxed), blockmeta_slot.load(std::sync::atomic::Ordering::Relaxed), block_slot.load(std::sync::atomic::Ordering::Relaxed));
