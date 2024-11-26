@@ -5,7 +5,7 @@ use {
     log::{error, info},
     solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionError},
     solana_transaction_status::{EncodedTransactionWithStatusMeta, UiTransactionEncoding},
-    std::{collections::{BTreeMap, HashMap}, env, fmt::{self, Display}, fs::File, sync::{atomic::AtomicU64, Arc}, time::Duration},
+    std::{collections::{BTreeMap, HashMap}, env, fmt::{self, Display}, fs::File, sync::{atomic::AtomicU64, Arc}, time::{Duration, SystemTime}},
     tokio::{sync::Mutex, time::Instant},
     tonic::transport::channel::ClientTlsConfig,
     yellowstone_grpc_client::{GeyserGrpcClient, GeyserGrpcClientError, Interceptor},
@@ -699,6 +699,7 @@ struct ClientStats {
     pub slot_slot: Arc<AtomicU64>,
     pub blockmeta_slot: Arc<AtomicU64>,
     pub block_slot: Arc<AtomicU64>,
+    pub delay: Arc<AtomicU64>,
 }
 
 async fn print_stats(client_stats: ClientStats) {
@@ -716,6 +717,7 @@ async fn print_stats(client_stats: ClientStats) {
         let slot_slot = client_stats.slot_slot.clone();
         let blockmeta_slot = client_stats.blockmeta_slot.clone();
         let block_slot = client_stats.block_slot.clone();
+        let delay = client_stats.delay.clone();
 
         let mut instant = Instant::now();
         let mut bytes_transfered_stats = Stats::<u64>::new();
@@ -744,6 +746,7 @@ async fn print_stats(client_stats: ClientStats) {
                 transaction_notifications.swap(0, std::sync::atomic::Ordering::Relaxed);
             let block_notifications =
                 block_notifications.swap(0, std::sync::atomic::Ordering::Relaxed);
+            let delay = delay.swap(0, std::sync::atomic::Ordering::Relaxed) / account_notification;
             bytes_transfered_stats.add_value(&bytes_transfered);
             total_accounts_size_stats.add_value(&total_accounts_size);
             slot_notifications_stats.add_value(&slot_notifications);
@@ -767,6 +770,8 @@ async fn print_stats(client_stats: ClientStats) {
             log::info!(" Blockmeta notified : {}", blockmeta_notifications);
             log::info!(" Transactions notified : {}", transaction_notifications);
             log::info!(" Blocks notified : {}", block_notifications);
+            log::info!(" Average delay by accounts : {} us", delay);
+
 
             log::info!(" Cluster Slots: {}, Account Slot: {}, Slot Notification slot: {}, BlockMeta slot: {}, Block slot: {}", cluster_slot.load(std::sync::atomic::Ordering::Relaxed), account_slot.load(std::sync::atomic::Ordering::Relaxed), slot_slot.load(std::sync::atomic::Ordering::Relaxed), blockmeta_slot.load(std::sync::atomic::Ordering::Relaxed), block_slot.load(std::sync::atomic::Ordering::Relaxed));
 
@@ -802,18 +807,24 @@ async fn geyser_subscribe(
             Ok(msg) => {
                 match msg.update_oneof {
                     Some(UpdateOneof::Account(account)) => {
-                        client_stats
-                        .account_notification
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        let data_len = account.account.map(|x| x.data.len()).unwrap_or_default() as u64;
-                        client_stats
-                            .total_accounts_size
-                            .fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
-                        client_stats.bytes_transfered.fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
-                        client_stats.account_slot.store(
-                            account.slot,
-                            std::sync::atomic::Ordering::Relaxed,
-                        );
+                        let slot = account.slot;
+                        if let Some(account) = account.account{
+                            client_stats
+                            .account_notification
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            let data_len = account.data.len() as u64;
+                            client_stats
+                                .total_accounts_size
+                                .fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
+                            client_stats.bytes_transfered.fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
+                            let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_micros() as u64;
+                            let account_in_us = account.lamports;
+                            client_stats.delay.fetch_add( now.saturating_sub(account_in_us), std::sync::atomic::Ordering::Relaxed);
+                            client_stats.account_slot.store(
+                                slot,
+                                std::sync::atomic::Ordering::Relaxed,
+                            );
+                        }
                         continue;
                     }
                     Some(UpdateOneof::Transaction(tx)) => {
