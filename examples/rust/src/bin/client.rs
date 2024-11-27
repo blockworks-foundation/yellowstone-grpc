@@ -555,21 +555,48 @@ async fn main() -> anyhow::Result<()> {
     );
 
     tokio::spawn(async move {
+        // info!("stream opened");
+        let client_stats = ClientStats::default();
+        {
+            let client_stats = client_stats.clone();
+            tokio::spawn(async move {print_stats(client_stats).await});
+        }
+
         loop {
             match geyser_messages_rx.recv().await {
                 Some(Message::GeyserSubscribeUpdate(update)) => match update.update_oneof {
-                    Some(UpdateOneof::Account(update)) => {
-                        let account_info = update.account.unwrap();
-                        let account_pk = Pubkey::try_from(account_info.pubkey).unwrap();
-                        let account_owner_pk = Pubkey::try_from(account_info.owner).unwrap();
+                    Some(UpdateOneof::Account(account_update)) => {
+                        // let account_info = account.account.unwrap();
+                        // let account_pk = Pubkey::try_from(account_info.pubkey).unwrap();
+                        // let account_owner_pk = Pubkey::try_from(account_info.owner).unwrap();
                         // note: slot is referencing the block that is just built while the slot number reported from BlockMeta/Slot uses the slot after the block is built
-                        let slot = update.slot;
+                        // let slot = account.slot;
                         // let account_receive_time = get_epoch_sec();
 
-                        info!(
-                            "Account update: slot: {}, account_pk: {}, account_owner_pk: {}",
-                            slot, account_pk, account_owner_pk
+                        // info!(
+                        //     "Account update: slot: {}, account_pk: {}, account_owner_pk: {}",
+                        //     slot, account_pk, account_owner_pk
+                        // );
+
+                        let slot = account_update.slot;
+                        let account = account_update.account.unwrap();
+
+                        client_stats
+                            .account_notification
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let data_len = account.data.len() as u64;
+                        client_stats
+                            .total_accounts_size
+                            .fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
+                        client_stats.bytes_transfered.fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
+                        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_micros() as u64;
+                        let account_in_us = account.lamports;
+                        client_stats.delay.fetch_add( now.saturating_sub(account_in_us), std::sync::atomic::Ordering::Relaxed);
+                        client_stats.account_slot.store(
+                            slot,
+                            std::sync::atomic::Ordering::Relaxed,
                         );
+
                     }
                     None => {}
                     _ => {}
