@@ -5166,10 +5166,13 @@ version = "1.16.2+solana.2.0.10"
 dependencies = [
  "bytes",
  "futures",
+ "log",
+ "solana-sdk",
  "thiserror",
  "tokio",
  "tonic",
  "tonic-health",
+ "url",
  "yellowstone-grpc-proto",
 ]
 
