@@ -1,3 +1,5 @@
+use std::thread;
+use clap::arg;
 use {
     backoff::{future::retry, ExponentialBackoff},
     clap::{Parser, Subcommand, ValueEnum},
@@ -21,6 +23,8 @@ use {
         SubscribeUpdateTransaction, SubscribeUpdateTransactionStatus,
     },
 };
+use yellowstone_grpc_client::grpc_subscription_autoreconnect_tasks::create_geyser_autoconnection_task_with_mpsc;
+use yellowstone_grpc_client::stuff::{GrpcConnectionTimeouts, GrpcSourceConfig, Message};
 
 type SlotsFilterMap = HashMap<String, SubscribeRequestFilterSlots>;
 type AccountFilterMap = HashMap<String, SubscribeRequestFilterAccounts>;
@@ -57,6 +61,7 @@ impl Args {
         Some(self.commitment.unwrap_or_default().into())
     }
 
+    // x
     async fn connect(&self) -> anyhow::Result<GeyserGrpcClient<impl Interceptor>> {
         GeyserGrpcClient::build_from_shared(self.endpoint.clone())?
             .x_token(self.x_token.clone())?
@@ -517,84 +522,151 @@ async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let args = Args::parse();
-    let zero_attempts = Arc::new(Mutex::new(true));
+    let args2 = args.clone();
+
+
+    let timeouts = GrpcConnectionTimeouts {
+        connect_timeout: Duration::from_secs(25),
+        request_timeout: Duration::from_secs(25),
+        subscribe_timeout: Duration::from_secs(25),
+        receive_timeout: Duration::from_secs(25),
+    };
+    let commitment = args.get_commitment();
+
+    let config = GrpcSourceConfig::new(args.endpoint, args.x_token, None, timeouts.clone());
+
+    let (autoconnect_tx, mut geyser_messages_rx) = tokio::sync::mpsc::channel(10);
+    let (_exit_tx, exit_rx) = tokio::sync::broadcast::channel::<()>(1);
+
+    let (subscribe_request, _resub) = args
+        .action
+        .get_subscribe_request(commitment)
+        .await
+        // .map_err(backoff::Error::Permanent)?
+        .unwrap()
+        .expect("expect subscribe action");
+
+
+    let _all_accounts = create_geyser_autoconnection_task_with_mpsc(
+        config.clone(),
+        subscribe_request,
+        autoconnect_tx.clone(),
+        exit_rx.resubscribe(),
+    );
+
+    tokio::spawn(async move {
+        loop {
+            match geyser_messages_rx.recv().await {
+                Some(Message::GeyserSubscribeUpdate(update)) => match update.update_oneof {
+                    Some(UpdateOneof::Account(update)) => {
+                        let account_info = update.account.unwrap();
+                        let account_pk = Pubkey::try_from(account_info.pubkey).unwrap();
+                        let account_owner_pk = Pubkey::try_from(account_info.owner).unwrap();
+                        // note: slot is referencing the block that is just built while the slot number reported from BlockMeta/Slot uses the slot after the block is built
+                        let slot = update.slot;
+                        // let account_receive_time = get_epoch_sec();
+
+                        info!(
+                            "Account update: slot: {}, account_pk: {}, account_owner_pk: {}",
+                            slot, account_pk, account_owner_pk
+                        );
+                    }
+                    None => {}
+                    _ => {}
+                },
+                None => {
+                    log::warn!("multiplexer channel closed - aborting");
+                    return;
+                }
+                Some(Message::Connecting(_)) => {}
+            }
+        }
+    });
+
+    // wait forever
+    tokio::time::sleep(Duration::from_secs(1800)).await;
+
+    return Ok(());
+
+
+    // let zero_attempts = Arc::new(Mutex::new(true));
 
     // The default exponential backoff strategy intervals:
     // [500ms, 750ms, 1.125s, 1.6875s, 2.53125s, 3.796875s, 5.6953125s,
     // 8.5s, 12.8s, 19.2s, 28.8s, 43.2s, 64.8s, 97s, ... ]
-    retry(ExponentialBackoff::default(), move || {
-        let args = args.clone();
-        let zero_attempts = Arc::clone(&zero_attempts);
-
-        async move {
-            let mut zero_attempts = zero_attempts.lock().await;
-            if *zero_attempts {
-                *zero_attempts = false;
-            } else {
-                info!("Retry to connect to the server");
-            }
-            drop(zero_attempts);
-
-            let commitment = args.get_commitment();
-            let mut client = args.connect().await.map_err(backoff::Error::transient)?;
-            info!("Connected");
-
-            match &args.action {
-                Action::HealthCheck => client
-                    .health_check()
-                    .await
-                    .map_err(anyhow::Error::new)
-                    .map(|response| info!("response: {response:?}")),
-                Action::HealthWatch => geyser_health_watch(client).await,
-                Action::Subscribe(_) => {
-                    let (request, resub) = args
-                        .action
-                        .get_subscribe_request(commitment)
-                        .await
-                        .map_err(backoff::Error::Permanent)?
-                        .expect("expect subscribe action");
-
-                    geyser_subscribe(client, request, resub).await
-                }
-                Action::Ping { count } => client
-                    .ping(*count)
-                    .await
-                    .map_err(anyhow::Error::new)
-                    .map(|response| info!("response: {response:?}")),
-                Action::GetLatestBlockhash => client
-                    .get_latest_blockhash(commitment)
-                    .await
-                    .map_err(anyhow::Error::new)
-                    .map(|response| info!("response: {response:?}")),
-                Action::GetBlockHeight => client
-                    .get_block_height(commitment)
-                    .await
-                    .map_err(anyhow::Error::new)
-                    .map(|response| info!("response: {response:?}")),
-                Action::GetSlot => client
-                    .get_slot(commitment)
-                    .await
-                    .map_err(anyhow::Error::new)
-                    .map(|response| info!("response: {response:?}")),
-                Action::IsBlockhashValid { blockhash } => client
-                    .is_blockhash_valid(blockhash.clone(), commitment)
-                    .await
-                    .map_err(anyhow::Error::new)
-                    .map(|response| info!("response: {response:?}")),
-                Action::GetVersion => client
-                    .get_version()
-                    .await
-                    .map_err(anyhow::Error::new)
-                    .map(|response| info!("response: {response:?}")),
-            }
-            .map_err(backoff::Error::transient)?;
-
-            Ok::<(), backoff::Error<anyhow::Error>>(())
-        }
-        .inspect_err(|error| error!("failed to connect: {error}"))
-    })
-    .await
-    .map_err(Into::into)
+    // retry(ExponentialBackoff::default(), move || {
+    //     let args = args2.clone();
+    //     let zero_attempts = Arc::clone(&zero_attempts);
+    //
+    //     async move {
+    //         let mut zero_attempts = zero_attempts.lock().await;
+    //         if *zero_attempts {
+    //             *zero_attempts = false;
+    //         } else {
+    //             info!("Retry to connect to the server");
+    //         }
+    //         drop(zero_attempts);
+    //
+    //         let commitment = args.get_commitment();
+    //         let mut client = args.connect().await.map_err(backoff::Error::transient)?;
+    //         info!("Connected");
+    //
+    //         match &args.action {
+    //             Action::HealthCheck => client
+    //                 .health_check()
+    //                 .await
+    //                 .map_err(anyhow::Error::new)
+    //                 .map(|response| info!("response: {response:?}")),
+    //             Action::HealthWatch => geyser_health_watch(client).await,
+    //             Action::Subscribe(_) => {
+    //                 let (request, resub) = args
+    //                     .action
+    //                     .get_subscribe_request(commitment)
+    //                     .await
+    //                     .map_err(backoff::Error::Permanent)?
+    //                     .expect("expect subscribe action");
+    //
+    //                 geyser_subscribe(client, request, resub).await
+    //             }
+    //             Action::Ping { count } => client
+    //                 .ping(*count)
+    //                 .await
+    //                 .map_err(anyhow::Error::new)
+    //                 .map(|response| info!("response: {response:?}")),
+    //             Action::GetLatestBlockhash => client
+    //                 .get_latest_blockhash(commitment)
+    //                 .await
+    //                 .map_err(anyhow::Error::new)
+    //                 .map(|response| info!("response: {response:?}")),
+    //             Action::GetBlockHeight => client
+    //                 .get_block_height(commitment)
+    //                 .await
+    //                 .map_err(anyhow::Error::new)
+    //                 .map(|response| info!("response: {response:?}")),
+    //             Action::GetSlot => client
+    //                 .get_slot(commitment)
+    //                 .await
+    //                 .map_err(anyhow::Error::new)
+    //                 .map(|response| info!("response: {response:?}")),
+    //             Action::IsBlockhashValid { blockhash } => client
+    //                 .is_blockhash_valid(blockhash.clone(), commitment)
+    //                 .await
+    //                 .map_err(anyhow::Error::new)
+    //                 .map(|response| info!("response: {response:?}")),
+    //             Action::GetVersion => client
+    //                 .get_version()
+    //                 .await
+    //                 .map_err(anyhow::Error::new)
+    //                 .map(|response| info!("response: {response:?}")),
+    //         }
+    //         .map_err(backoff::Error::transient)?;
+    //
+    //         Ok::<(), backoff::Error<anyhow::Error>>(())
+    //     }
+    //     .inspect_err(|error| error!("failed to connect: {error}"))
+    // })
+    // .await
+    // .map_err(Into::into)
 }
 
 async fn geyser_health_watch(mut client: GeyserGrpcClient<impl Interceptor>) -> anyhow::Result<()> {

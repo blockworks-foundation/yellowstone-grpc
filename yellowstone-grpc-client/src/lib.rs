@@ -1,6 +1,6 @@
-mod stuff;
-mod grpc_subscription_autoreconnect_tasks;
-mod yellowstone_grpc_util;
+pub mod stuff;
+pub mod grpc_subscription_autoreconnect_tasks;
+pub mod yellowstone_grpc_util;
 mod obfuscate;
 
 pub use tonic::service::Interceptor;
