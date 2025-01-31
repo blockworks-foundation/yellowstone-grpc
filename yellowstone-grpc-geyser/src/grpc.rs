@@ -479,6 +479,7 @@ impl GrpcService {
                         // On startup we can receive multiple Confirmed/Finalized slots without BlockMeta message
                         // With saved first Processed slot we can ignore errors caused by startup process
                         Message::Slot(msg) if processed_first_slot.is_none() && msg.status == CommitmentLevel::Processed => {
+                            println!("set processed_first_slot: {}", msg.slot);
                             processed_first_slot = Some(msg.slot);
                         }
                         Message::Slot(msg) if msg.status == CommitmentLevel::Finalized => {
@@ -1144,4 +1145,38 @@ impl Geyser for GrpcService {
             version: serde_json::to_string(&GrpcVersionInfo::default()).unwrap(),
         }))
     }
+}
+
+
+#[tokio::test]
+async fn geyser_loop_test() {
+    tracing_subscriber::fmt::fmt().init();
+
+    let (messages_tx, messages_rx) = mpsc::unbounded_channel();
+    let (broadcast_tx, mut broadcast_rx) = broadcast::channel(1024);
+
+    let jh = tokio::spawn(
+        GrpcService::geyser_loop(
+            messages_rx,
+            None,
+            broadcast_tx)
+    );
+
+    messages_tx.send(Message::Slot(MessageSlot {
+        slot: 42,
+        parent: None,
+        status: CommitmentLevel::Processed,
+        dead_error: None,
+    })).unwrap();
+
+    let more = broadcast_rx.recv().await.unwrap();
+    info!("broadcast_rx: more {:?}", more);
+    let more = broadcast_rx.recv().await.unwrap();
+    info!("broadcast_rx: more {:?}", more);
+    let more = broadcast_rx.recv().await.unwrap();
+    info!("broadcast_rx: more {:?}", more);
+    assert_eq!( broadcast_rx.len(), 0);
+
+    jh.abort();
+
 }
